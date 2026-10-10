@@ -70,7 +70,7 @@ SD card/
             └── variants/
 ```
 
-If an `assets` folder already exists beside the converter, move or rename it before converting again. OGG-only music installations aren't supported.
+The converter requires WAV music; OGG-only installations aren't supported.
 
 ## Controls
 
@@ -84,12 +84,6 @@ If an `assets` folder already exists beside the converter, move or rename it bef
 | START | Pause |
 
 Change bindings in **Options > Controls > Key Config**. Shooting and focus can also be set to toggle.
-
-## Updating
-
-Replace the 3DSX or install the newer CIA. If the release notes require new assets, run the converter again and replace `/3ds/th06/assets/`.
-
-Keep the other files in `/3ds/th06/` to preserve settings, records, and replays.
 
 ## Bugs
 
