@@ -11,6 +11,7 @@
 *.ogg
 *.ndsp
 *.pcm
+!/tools/converter/resources/bundled-assets/variants/sound-*/audio/*.pcm
 *.3dsx
 *.cia
 *.elf

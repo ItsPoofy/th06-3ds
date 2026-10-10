@@ -1,0 +1,84 @@
+The Embodiment of Scarlet Devil ~ Retexture Pack ver 0.3
+
+==========
+
+V0.2 -> v0.3 changelog
+
+
+- Fixed the Ascii map.
+
+- Cleaned up the bullets. There was a very thin white line on the edges on some of them, but only at certain angles.
+
+- Made further changes to the effects. Enemy explosions should be much more satisfying.
+
+- Flipped the spirit enemies that appear after Daiyousei (they were upside down).
+
+- Changed the colour of a few fairies.
+
+- Cirno's ribbon so it's now blue. Her wings are now animated.
+
+- Rumia's portraits are fixed.
+
+- Slightly adjusted Reimu's in-game portrait so that her skirt colour matches her top.
+
+- Any menu with Sakuya in the background has been made a bit brighter.
+
+- Changed the title font slightly.
+
+- Added a variety of soundpacks from the other games.
+
+==========
+
+Installation:
+
+Copy TH06e_ST into your EoSD folder. When prompted, overwrite everything.
+
+Now, select between Visible and non-visible hitbox. Copy the th06e_CM and TH06e_TL from your choice and put them into your EoSD folder. When prompted, overwrite everything.
+
+Finally, select your preffered sound pack. Copy th06e_in and put it into your EoSD folder. When prompted, overwrite everything. Even if you're using the original sound effect, please copy the th06e_ST.dat from the 'Original' folder, as this contains the new fonts.
+
+-
+
+NOTE: The Retexture pack only works properly with an English patched version of the game. If you install this with the Japanese version, in-game dialogue will appear broken. If anyone's interested in helping create a version that works correctly on the Japanese version, feel free to visit the current thread on: http://www.pooshlmer.com/wakaba/
+
+The 'Patch Making and Extraction Tools' may also be of interest: http://touhou.wikia.com/wiki/Random_Things
+
+The patch will also bump up the minimum requirements for the game. However, this will only become a problem if you are using a very low spec computer.
+
+==========
+
+v0.1 -> v0.2 changelog
+
+- Marisa's sprite is now centered with her hitbox.
+
+- Ice enemies in stage 2 should look less transparent.
+
+- Changed the spirit enemies that appear after Daiyousei
+
+- Changed Remilia, Sakuya, and Cirno's sprites so they are more consistent with their portraits.
+
+- Made a few further changes to Sakuya's sprite. Now her legs aren't so far apart when moving.
+
+- Changed the fire bullets. 
+
+- Changed the bullet-cancel items.
+
+- Changed all fonts but the dialogue font.
+
+- Changed some in-game effects.
+
+- Cleaned up the portraits.
+
+- Replaced power_0 with the PCB one.
+
+- Complete rework on the menu images.
+
+==========
+Patch created by Emarrel
+Total files: 223
+Image: 148
+Sound: 75
+Other: 0
+
+
+Last edited 22:02 09/12/08
