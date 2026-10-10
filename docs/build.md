@@ -40,7 +40,9 @@ python tools/build_converter.py
 
 The output is `dist/TH06-Asset-Converter.exe`. It includes Python and its dependencies, so the end user doesn't need a Python installation. The ADPCM helper uses .NET Framework 4.5 or later, which is available on Windows 10 and Windows 11.
 
-The converter modules separate the folder-picker interface, conversion pipeline, texture preparation, translation formats, and optional content imports. Its checked-in resources contain the port's UI lettering, expanded backgrounds, translation patches, open font fallbacks, and conversion tools. They do not contain original game archives, music, stage scripts, or TH20 artwork.
+The converter modules separate the folder-picker interface, conversion pipeline, texture preparation, translation formats, and bundled content installation. Its checked-in resources contain the port's UI lettering, expanded backgrounds, translation patches, open font fallbacks, conversion tools, EoSD Retexture Pack v0.3 graphics and sound sets, and the TH20 focus and circular boss-bar sprites. Original TH06 archives, music, and stage scripts are generated from the user's installation.
+
+The converted cosmetics are in `tools/converter/resources/bundled-assets/`. The converter installs them automatically. It creates the Old player sprites and the Japanese and English UI overrides from the user's assets, preserving the port's expanded backgrounds and lettering.
 
 ### Rebuild conversion helpers
 
@@ -52,8 +54,8 @@ csc /optimize+ /reference:VGAudio.dll /out:PrepareAudio.exe tools/PrepareAudio.c
 
 Place `PrepareAudio.exe` and `VGAudio.dll` in `tools/converter/resources/` before building the converter.
 
-The `thdat.exe` and `thanm.exe` helpers are built from [Touhou Toolkit](https://github.com/thpatch/thtk), which supports TH20 extraction. Their PNG and zlib runtime libraries are included beside them. The helper licenses and font notices are retained in `tools/converter/resources/licenses/`.
+The developer utilities in `tools/converter/optional_content.py` prepare retexture and TH20 graphics. The `thdat.exe` and `thanm.exe` helpers are built from [Touhou Toolkit](https://github.com/thpatch/thtk), which supports TH20 extraction. Their PNG and zlib runtime libraries are included beside them in the source repository; the converter executable excludes these developer tools. The helper licenses, retexture credits, and font notices are retained in `tools/converter/resources/licenses/`.
 
 ## Asset and publication boundaries
 
-Keep generated `assets`, local ROMFS data, PC game folders, settings, scores, and crash dumps outside the repository. The release artifacts are the converter executable, 3DSX, and CIA. The converter can import optional retexture and TH20 files from the user's copies; these optional game files are not uploaded with releases.
+Keep generated `assets`, local ROMFS data, PC game folders, settings, scores, and crash dumps outside the repository. The release artifacts are the converter executable, 3DSX, and CIA. The converter bundles the selected retexture graphics and sound sets and the two TH20 sprites, alongside the port's backgrounds and UI. Do not add complete game archives, original stage scripts, or original music to the bundle.

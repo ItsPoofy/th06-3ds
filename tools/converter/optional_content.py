@@ -1,4 +1,4 @@
-"""Import optional graphics and sound sets from the user's own copies."""
+"""Developer utilities for preparing the bundled graphics and sound sets."""
 import io
 from pathlib import Path
 import shutil
@@ -10,11 +10,7 @@ import numpy as np
 from PIL import Image
 from prepare_assets import unpack, write_texture
 from game_formats import image_texture
-
-UI_SHEETS = ('ascii', 'asciis', 'title01', 'title01s', 'title02', 'title03',
-             'title04', 'title04s', 'select01', 'select02', 'select03', 'select04',
-             'select05', 'result00', 'result02', 'result03', 'replay00', 'music00',
-             'staff01', 'staff02', 'staff03', 'front', 'slpl00a', 'slpl00b', 'slpl01a', 'slpl01b')
+from bundled_content import UI_SHEETS
 
 
 def retexture(source, assets, resources, report):

@@ -14,6 +14,7 @@ import numpy as np
 from prepare_assets import prepare as prepare_game
 from game_formats import message, ending
 from graphics import prepare as prepare_graphics
+from bundled_content import install as install_bundled_content
 
 
 def sounds(dest):
@@ -98,6 +99,8 @@ def convert(source, output, resources, report):
         language(dest, resources)
         report('Converting sound effects…')
         sounds(dest)
+        report('Adding retexture graphics, sound sets, and TH20 focus and boss-bar sprites…')
+        install_bundled_content(dest, resources)
         report('Encoding music to DSP-ADPCM. This can take a few minutes…')
         (dest/'audio').mkdir(exist_ok=True)
         command = [str(resources/'PrepareAudio.exe'), str(source/'bgm'), str(dest/'data'), str(dest/'audio')]
