@@ -1,43 +1,108 @@
 # Touhou 6 for the 3DS
 
-A Nintendo 3DS port of **Touhou Koumakyou ~ the Embodiment of Scarlet Devil**, maintained by **ItsPoofy** and based on [GensokyoClub/th06](https://github.com/GensokyoClub/th06).
+A Nintendo 3DS port of **Touhou Koumakyou ~ the Embodiment of Scarlet Devil** with additional quality-of-life features, based on [GensokyoClub/th06](https://github.com/GensokyoClub/th06).
 
-The release includes an asset converter, a Homebrew Launcher build (`.3dsx`), and a HOME Menu build (`.cia`). Original game archives, stage data, sprites, and audio are not included. The converter uses your PC installation to create the assets required by both builds. The port's expanded backgrounds and UI lettering are included.
+Compatible with both **Old and New Nintendo 3DS and 2DS systems**.
+
+**This port is a work in progress.** Some screens and features aren't finished yet, and bugs remain.
+
+You'll need the original PC game files. The included Windows converter prepares them for the 3DS.
+
+## Features
+
+- Integrated **EoSD Retexture Pack v0.3**, with selectable original/retextured graphics and Old/New player sprites.
+- Original, PCB, IN, and SA sound sets.
+- Toggle shooting and focus, plus remappable controls.
+- Adjustable **Point of Collection** behavior: collect at max power only, or at any power.
+- Optional circular boss health bars, focus hitbox indicator, and sidebar life/bomb counters.
+- English/Japanese language selection, including translated dialogue and endings.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/main-menu.png" width="260" alt="English main menu" />
+  <img src="docs/screenshots/stage-1.png" width="260" alt="Stage 1 gameplay on Normal difficulty" />
+  <img src="docs/screenshots/stage-4.png" width="260" alt="Stage 4 gameplay on Lunatic difficulty" />
+</p>
+
+Screenshots taken in Azahar.
+
+## Known unfinished parts
+
+- Music Room currently uses only one screen.
+- Some score displays are still too small on the console.
+- Menu layouts and text sizing still need work.
 
 ## Requirements
 
-- A homebrew-enabled Nintendo 3DS or 2DS. For console setup, follow [3DS Hacks Guide](https://3ds.hacks.guide/).
-- A complete original Japanese TH06 installation with its DAT archives and original WAV files in `bgm`.
-- A Windows 10 or Windows 11 PC for the converter.
-- DSP firmware on your SD card. Follow the [DSP setup instructions](https://3ds.hacks.guide/finalizing-setup.html#section-iii-rtc-and-dsp-setup) if you haven't dumped it.
+- A homebrew-enabled 3DS or 2DS.
+- The original Japanese TH06 game files, including the DAT archives and WAV music in `bgm`.
+- A Windows 10 or 11 PC to run the converter.
+- DSP firmware dumped on your console for audio. See [3DS Hacks Guide](https://3ds.hacks.guide/finalizing-setup.html).
 
-## Instructions
+## Installation
 
-1. Download `th06.3dsx` from [Releases](https://github.com/ItsPoofy/th06-3ds/releases/latest).
-2. Download `TH06-Asset-Converter.exe` from [Releases](https://github.com/ItsPoofy/th06-3ds/releases/latest).
-3. Move the executable to a writable folder on your PC.
-4. Open `TH06-Asset-Converter.exe`.
-5. Select the TH06 folder containing the original DAT archives and the `bgm` folder.
-6. Wait for **Assets ready**. Music conversion can take a few minutes.
-7. Copy the generated `assets` folder to `/3ds/th06/` on your SD card.
+Download `TH06-Asset-Converter.exe` and either `th06.3dsx` or `th06.cia` from the [latest release](https://github.com/ItsPoofy/th06-3ds/releases/latest).
 
-## Update
+1. Put the converter in a writable folder on your PC, then run it.
+2. Select your TH06 game folder—the folder containing the DAT archives and `bgm`.
+3. Wait for **Assets ready**. The converter creates an `assets` folder beside the executable. Music conversion can take a few minutes.
+4. Copy that `assets` folder to `/3ds/th06/` on your SD card.
 
-Replace the 3DSX or install the new CIA. If the release notes require asset conversion, generate a new `assets` folder and replace only `/3ds/th06/assets/`. Keep the other files in `/3ds/th06/` to preserve settings and records.
+Then install your chosen build:
 
-## Troubleshooting
+- **3DSX:** Copy `th06.3dsx` to `/3ds/th06/`, then launch **Touhou 6** from Homebrew Launcher.
+- **CIA:** Copy `th06.cia` to your SD card, install it with FBI, then launch **Touhou 6** from the HOME Menu.
 
-| Problem | Action |
+Both builds need `/3ds/th06/assets/`. Installing the CIA does not copy the assets.
+
+```text
+SD card/
+└── 3ds/
+    └── th06/
+        ├── th06.3dsx   ← only needed for Homebrew Launcher
+        └── assets/
+            ├── asset-version.txt
+            ├── audio/
+            ├── data/
+            ├── textures/
+            ├── ui/
+            └── variants/
+```
+
+If an `assets` folder already exists beside the converter, move or rename it before converting again. OGG-only music installations aren't supported.
+
+## Controls
+
+| Input | Default action |
 | --- | --- |
-| The game says assets are missing | Copy the entire generated `assets` folder to `/3ds/th06/`. Check for `/3ds/th06/assets/asset-version.txt`; avoid an extra nested `assets` folder. |
-| The converter reports missing WAV music | Select an installation with the original WAV files in `bgm`. An OGG-only installation isn't supported. |
-| Music and effects are silent | Dump DSP firmware using the linked console setup guide, then restart the game. |
-| An optional setting uses original artwork or audio | Import the corresponding optional content in the converter and copy the updated assets to the SD card. Restart the game. |
-| The game crashes | Open a GitHub issue with the console model, 3DSX/CIA version, stage or menu, character, shot type, and settings. Attach `/3ds/th06/startup.log` and the Luma crash dump if available. |
+| D-pad / Circle Pad | Move |
+| A | Shoot / confirm |
+| B | Bomb / back |
+| L | Focus |
+| X | Skip dialogue |
+| START | Pause |
 
-## Development and credits
+Change bindings in **Options > Controls > Key Config**. Shooting and focus can also be set to toggle.
 
-See [Build from source](docs/build.md) for the game and converter build instructions.
+## Updating
 
-- Original game: ZUN / Team Shanghai Alice.
-- Reimplementation: [GensokyoClub/th06](https://github.com/GensokyoClub/th06)
+Replace the 3DSX or install the newer CIA. If the release notes require new assets, run the converter again and replace `/3ds/th06/assets/`.
+
+Keep the other files in `/3ds/th06/` to preserve settings, records, and replays.
+
+## Bugs
+
+Report problems in [Issues](https://github.com/ItsPoofy/th06-3ds/issues). Include your console model, release version, whether you use CIA or 3DSX, and what happened. For crashes, attach `/3ds/th06/startup.log` and a Luma crash dump if available.
+
+## Building
+
+See [Build from source](docs/build.md).
+
+## Credits
+
+- **ZUN / Team Shanghai Alice** — original game.
+- **[GensokyoClub/th06](https://github.com/GensokyoClub/th06)** — original reimplementation.
+- **ItsPoofy** — 3DS port.
+- **Emarrel** — EoSD Retexture Pack v0.3.
+- **[Touhou Patch Center](https://www.thpatch.net/wiki/Touhou_Patch_Center:Main_page)** — English translation.
