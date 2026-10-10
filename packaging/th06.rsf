@@ -1,0 +1,37 @@
+BasicInfo:
+  Title: TH06
+  ProductCode: CTR-P-TH06
+  Logo: Homebrew
+TitleInfo:
+  Category: Application
+  UniqueId: 0xf7060
+Option:
+  UseOnSD: true
+  FreeProductCode: true
+  EnableCrypt: false
+  EnableCompress: true
+AccessControlInfo:
+  FileSystemAccess:
+    - DirectSdmc
+  SystemMode: 64MB
+  SystemModeExt: Legacy
+  CpuSpeed: 804MHz
+  EnableL2Cache: true
+  IdealProcessor: 0
+  AffinityMask: 1
+  Priority: 48
+  HandleTableSize: 512
+  CanUseNonAlphabetAndNumber: true
+  CanShareDeviceMemory: true
+  ServiceAccessControl:
+    - APT:U
+    - fs:USER
+    - gsp::Gpu
+    - hid:USER
+    - dsp::DSP
+    - cfg:u
+    - ptm:u
+SystemControlInfo:
+  StackSize: 0x80000
+  SaveDataSize: 0K
+  RemasterVersion: 0
