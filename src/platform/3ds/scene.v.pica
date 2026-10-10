@@ -1,0 +1,24 @@
+; Transform on PICA, including GL-to-PICA clip depth and top-origin UVs.
+.fvec clipRows[4], textureRows[2]
+.constf constants(0.0, 1.0, 0.00392156862745, 0.0)
+.out outpos position
+.out outuv texcoord0
+.out outcolor color
+.alias inpos v0
+.alias inuv v1
+.alias incolor v2
+.proc main
+    mov r0.xyz, inpos
+    mov r0.w, constants.yyyy
+    dp4 outpos.x, clipRows[0], r0
+    dp4 outpos.y, clipRows[1], r0
+    dp4 outpos.z, clipRows[2], r0
+    dp4 outpos.w, clipRows[3], r0
+    mov r1.xy, inuv
+    mov r1.zw, constants.yyyy
+    dp4 outuv.x, textureRows[0], r1
+    dp4 outuv.y, textureRows[1], r1
+    mov outuv.zw, constants.xxxx
+    mul outcolor, constants.zzzz, incolor
+    end
+.end

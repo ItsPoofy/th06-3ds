@@ -1,0 +1,7 @@
+* text=auto
+*.png binary
+*.ttf binary
+*.otf binary
+*.exe binary
+*.dll binary
+tools/converter/resources/licenses/* -whitespace
