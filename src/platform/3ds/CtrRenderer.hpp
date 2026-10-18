@@ -59,6 +59,9 @@ public:
     void ResumeFromApplet();
     void PrepareForExit();
     void SynchronizeAssets();
+    void SetStageDepthBias(float bias) {
+        if(stageDepthBias!=bias) {stageDepthBias=bias;clipMatrixDirty=true;}
+    }
 private:
     struct Texture {
         C3D_Tex gpu{};
@@ -112,6 +115,7 @@ private:
         ZunColor fogColor=0;
     } applied;
     bool clipMatrixDirty=true;
+    float stageDepthBias=0;
     bool textureMatrixDirty=true;
     int clipUniform=-1,textureUniform=-1;
     void* pointers[3]{};

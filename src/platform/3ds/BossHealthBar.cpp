@@ -95,6 +95,16 @@ void CtrBossHealthBar::Draw() {
  AnmVm state{};state.flags.zWriteDisable=1;
  state.color=(u32(opacity*255)<<24)|0xffffff;
  manager.SetRenderStateForVm(&state);
+ manager.SetDepthFunc(DEPTH_FUNC_ALWAYS);
+ manager.SetColorOp(COMPONENT_RGB,COLOR_OP_MODULATE);
+ manager.SetColorOp(COMPONENT_ALPHA,COLOR_OP_MODULATE);
+ // The opaque white stripe already renders after bullets. A dark backing
+ // under its translucent edges keeps its contour visible over white bullets.
+ state.color&=0xff000000;
+ manager.SetRenderStateForVm(&state);
+ Arc(56,4,health,3.5f,6.5f);
+ state.color|=0xffffff;
+ manager.SetRenderStateForVm(&state);
  Arc(54,1,1,12.5f,15.5f);
  Arc(58,1,1,12.5f,15.5f);
  Arc(56,4,health,.5f,7.5f);

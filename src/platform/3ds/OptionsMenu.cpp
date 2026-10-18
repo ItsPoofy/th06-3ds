@@ -4,6 +4,7 @@
 #include "BossHealthBar.hpp"
 #include "SfxVoices.hpp"
 #include "SelectionArt.hpp"
+#include "Presentation.hpp"
 #include "DisplaySettings.hpp"
 #include "MainMenu.hpp"
 #include "GameManager.hpp"
@@ -108,7 +109,7 @@ int CtrOptions::Update(MainMenu& menu) {
             case Item::Sfx:ChangeVolume(false,direction);break;
             case Item::Sound:ChangeContent(Content::Sound,direction);if(!ReloadSounds())return -1;break;
             case Item::Language:ChangeContent(Content::Language,direction);CtrSelectionArt::RefreshLanguage();reloadArtwork=true;break;
-            case Item::Graphics:ChangeContent(Content::Graphics,direction);g_Supervisor.cfg.colorMode16bit=0;reloadArtwork=true;break;
+            case Item::Graphics:ChangeContent(Content::Graphics,direction);g_Supervisor.cfg.colorMode16bit=0;reloadArtwork=true;if(!CtrPresentation::RefreshMaterial())return -1;break;
             case Item::Sprites:ChangeContent(Content::Sprites,direction);break;
             default:break;
         }
@@ -117,6 +118,7 @@ int CtrOptions::Update(MainMenu& menu) {
     if(select || WAS_PRESSED(TH_BUTTON_RETURNMENU)) {
         if(page>=0 && At(menu.cursor)==Item::Reset) {
             CtrSettings::Reset();CtrDisplay::Reset();
+            if(!CtrPresentation::RefreshMaterial())return -1;
             reloadArtwork=true;
             CtrSelectionArt::RefreshLanguage();
             if(!ReloadSounds())return -1;

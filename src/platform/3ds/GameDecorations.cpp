@@ -2,6 +2,7 @@
 #include "BossCounters.hpp"
 #include "BossPresentation.hpp"
 #include "BossHealthBar.hpp"
+#include "BossSpellHud.hpp"
 #include "Settings.hpp"
 #include "FocusEffect.hpp"
 #include "PortraitBlend.hpp"
@@ -20,6 +21,7 @@
 namespace {
 int current=0,playerFace=0,fade=0,stage=0,playerCharacter=-1;
 int bombFace=-1,bossSpellFace=-1;
+int dialogueSpeaker=-1;
 CtrPortraitBlend<6> playerBlend;
 CtrPortraitBlend<4> bossBlend;
 bool dialogue=false,mainBossSeen=false,miniboss=false;
@@ -94,11 +96,12 @@ void Portrait(int index,bool right,unsigned alpha) {
 void CtrDecorations::BeginStage(int nextStage) {
     CtrBossPresentation::Reset();
     CtrBossHealthBar::Reset();
+    CtrBossSpellHud::Reset();
     const bool continuing=playerCharacter==g_GameManager.character && nextStage==stage+1;
     if(continuing){playerBlend.Select(0);playerBlend.Tick();}else playerBlend.Reset();
     playerCharacter=g_GameManager.character;
     stage=nextStage;fade=0;current=playerFace=0;dialogue=mainBossSeen=miniboss=false;
-    bombFace=bossSpellFace=-1;bossBlend.Reset();
+    bombFace=bossSpellFace=dialogueSpeaker=-1;bossBlend.Reset();
     releasingDialogue=false;faceOpacity[0]=faceOpacity[1]=battleOpacity;
     dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
     for(auto& vm:dialogueFaces)vm.flags.isVisible=0;
@@ -106,16 +109,22 @@ void CtrDecorations::BeginStage(int nextStage) {
     // replacements during Extra dialogue without stale expression images.
     CtrFocusEffect::BeginStage();
 }
+int CtrDecorations::CurrentBossName(){return BossName();}
 void CtrDecorations::SelectPortrait(int portrait) {if(portrait>=0 && portrait<4)current=portrait;}
 void CtrDecorations::PlayerSpellcard(int sprite) {bombFace=sprite-ANM_SPRITE_FACE_CHARA_START;}
 void CtrDecorations::EndPlayerSpellcard() {bombFace=-1;}
 void CtrDecorations::BossSpellcard(int sprite) {if(sprite>=0 && sprite<4)bossSpellFace=sprite;}
 void CtrDecorations::EndBossSpellcard() {bossSpellFace=-1;}
 void CtrDecorations::BeginDialogue() {
-    releasingDialogue=false;dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
+    releasingDialogue=false;dialogueSpeaker=-1;dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
+}
+void CtrDecorations::DialogueSpeaker(int side) {
+    if(side<0 || side>1)return;
+    dialogueSpeaker=side;releasingDialogue=false;
 }
 void CtrDecorations::UpdateDialogue(const GuiMsgVm& message) {
     dialogue=message.currentMsgIdx>=0;
+    if(!dialogue)dialogueSpeaker=-1;
     if(dialogue) {
         for(int i=0;i<2;i++)dialogueFaces[i]=message.portraits[i];
         const int p=message.portraits[0].activeSpriteIndex-ANM_SPRITE_FACE_CHARA_START;
@@ -123,7 +132,8 @@ void CtrDecorations::UpdateDialogue(const GuiMsgVm& message) {
         if(message.portraits[1].sprite && message.portraits[1].flags.isVisible)mainBossSeen=true;
     }
     for(int i=0;i<2;i++) {
-        const unsigned target=dialogue && !releasingDialogue?dialogueOpacity[i]:battleOpacity;
+        const unsigned target=dialogue && !releasingDialogue?
+            (dialogueSpeaker>=0?(dialogueSpeaker==i?255:128):dialogueOpacity[i]):battleOpacity;
         faceOpacity[i]=unsigned(std::clamp(int(target),int(faceOpacity[i])-16,int(faceOpacity[i])+16));
     }
 }
@@ -136,7 +146,7 @@ void CtrDecorations::PortraitInterrupt(int side,int interrupt) {
         releasingDialogue=false;dialogueOpacity[side]=interrupt==4?128:255;
     } else if(interrupt==2 || interrupt==5)dialogueOpacity[side]=battleOpacity;
 }
-void CtrDecorations::EndDialogue() {releasingDialogue=true;}
+void CtrDecorations::EndDialogue() {releasingDialogue=true;dialogueSpeaker=-1;}
 void CtrDecorations::UpdateBoss(bool present,int portrait) {
     CtrFocusEffect::Update();
     CtrBossCounters::Observe(present);

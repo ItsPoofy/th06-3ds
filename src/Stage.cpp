@@ -4,6 +4,7 @@
 #ifdef __3DS__
 #include "platform/3ds/StageVisibility.hpp"
 #include "platform/3ds/StageDepth.hpp"
+#include "platform/3ds/CtrRenderer.hpp"
 #endif
 #include "Stage.hpp"
 #include "AnmIdx.hpp"
@@ -572,6 +573,9 @@ ZunResult Stage::RenderObjects(i32 zLevel)
     worldMatrix.Identity();
 #ifdef __3DS__
     const auto clipMatrix=g_Supervisor.projectionMatrix*g_Supervisor.viewMatrix;
+    auto* renderer=static_cast<CtrRenderer*>(g_GfxBackend);
+    float depthBias=0;
+    renderer->SetStageDepthBias(0);
 #endif
 
     while (instance->id >= 0)
@@ -699,6 +703,15 @@ ZunResult Stage::RenderObjects(i32 zLevel)
 #endif
         render:
             didDraw = true;
+#ifdef __3DS__
+            {
+                const float nextBias=CtrStageDepth::Offset(unsigned(instance-this->objectInstances));
+                if(nextBias!=depthBias) {
+                    g_AnmManager->FlushVertexBuffer();
+                    renderer->SetStageDepthBias(nextBias);depthBias=nextBias;
+                }
+            }
+#endif
             while (0 <= curQuad->type)
             {
                 curQuadVm = this->quadVms + curQuad->vmIdx;
@@ -708,9 +721,6 @@ ZunResult Stage::RenderObjects(i32 zLevel)
                     curQuadVm->pos.x = curQuad->position.x + instance->position.x - this->position.x;
                     curQuadVm->pos.y = curQuad->position.y + instance->position.y - this->position.y;
                     curQuadVm->pos.z = curQuad->position.z + instance->position.z - this->position.z;
-#ifdef __3DS__
-                    curQuadVm->pos.z+=CtrStageDepth::Offset(unsigned(instance-this->objectInstances));
-#endif
                     if (curQuad->size.x != 0.0f)
                     {
                         curQuadVm->scaleX = curQuad->size.x / curQuadVm->sprite->widthPx;
@@ -755,5 +765,11 @@ ZunResult Stage::RenderObjects(i32 zLevel)
     skip:
         instance++;
     }
+#ifdef __3DS__
+    if(depthBias!=0) {
+        g_AnmManager->FlushVertexBuffer();
+        renderer->SetStageDepthBias(0);
+    }
+#endif
     return ZUN_SUCCESS;
 }

@@ -792,9 +792,6 @@ void Enemy::UpdateEffects(Enemy *enemy)
 
 ChainCallbackResult EnemyManager::OnDraw(EnemyManager *mgr)
 {
-#ifdef __3DS__
-    CtrBossHealthBar::Draw();
-#endif
     AnmVm *curEnemyVm;
     Enemy *curEnemy;
     i32 curEnemyVmIdx;

@@ -10,6 +10,7 @@
 #include "platform/3ds/GameplayLayout.hpp"
 #include "platform/3ds/GameplayLogo.hpp"
 #include "platform/3ds/BossHealthBar.hpp"
+#include "platform/3ds/BossSpellHud.hpp"
 #include "EnemyManager.hpp"
 #endif
 
@@ -17,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <algorithm>
+#include <iterator>
 
 #include "AnmManager.hpp"
 #include "AsciiManager.hpp"
@@ -52,6 +54,7 @@ void Gui::EndEnemySpellcard() const
 {
 #ifdef __3DS__
     CtrDecorations::EndBossSpellcard();
+    CtrBossSpellHud::End();
 #endif
     this->impl->enemySpellcardName.pendingInterrupt = 1;
     return;
@@ -99,8 +102,7 @@ ChainCallbackResult Gui::OnUpdate(Gui *gui)
     gui->impl->RunMsg();
 #ifdef __3DS__
     if(!g_GameManager.isInGameMenu) {
-        const bool visible=gui->impl->msg.currentMsgIdx>=0 && !gui->impl->finishedStage &&
-            !(g_GameManager.currentStage==6 && (gui->impl->msg.currentMsgIdx==1 || gui->impl->msg.currentMsgIdx==11));
+        const bool visible=gui->impl->msg.currentMsgIdx>=0 && !gui->impl->finishedStage;
         CtrPlayfieldText::TickDialoguePanel(visible);
         CtrPlayfieldText::TickMusic(visible || CtrPlayfieldText::DialoguePanelOpacity()>0);
     }
@@ -222,6 +224,12 @@ ChainCallbackResult Gui::OnDraw(Gui *gui)
 
 #ifdef __3DS__
     g_AsciiManager.isGui=0;
+    // Enemy/bullet draws leave the stage viewport here. Screen-space GUI
+    // panels and health rings use the full logical canvas.
+    g_Supervisor.viewport.x=g_Supervisor.viewport.y=0;
+    g_Supervisor.viewport.width=GAME_WINDOW_WIDTH;g_Supervisor.viewport.height=GAME_WINDOW_HEIGHT;
+    g_Supervisor.viewport.Set();
+    CtrBossHealthBar::Draw();
 #endif
     gui->impl->DrawDialogue();
     gui->DrawStageElements();
@@ -312,7 +320,11 @@ void Gui::ShowBombNamePortrait(u32 sprite, const char *bombName)
     g_AnmManager->SetAndExecuteScriptIdx(&this->impl->playerSpellcardPortrait, 0x4a1);
     g_AnmManager->SetActiveSprite(&this->impl->playerSpellcardPortrait, sprite);
     g_AnmManager->SetAndExecuteScriptIdx(&this->impl->bombSpellcardName, 0x706);
+#ifdef __3DS__
+    TextHelper::Wrapped(&this->impl->bombSpellcardName,bombName,0xf0f0ff,0,290,false,false,false,false,TextHelper::FontRole::SpellTitle);
+#else
     g_AnmManager->DrawVmTextFmt(&this->impl->bombSpellcardName, 0xf0f0ff, 0x0, "%s", bombName);
+#endif
     this->bombSpellcardBarLength = std::strlen(bombName) * 0xf / 2.0f + 16;
     g_Supervisor.unk198 = 3;
     g_SoundPlayer.PlaySoundByIdx(SOUND_BOMB);
@@ -326,7 +338,12 @@ void Gui::ShowSpellcard(i32 spellcardSprite, const char *spellcardName)
     g_AnmManager->SetAndExecuteScriptIdx(&this->impl->enemySpellcardPortrait, ANM_SCRIPT_FACE_ENEMY_SPELLCARD_PORTRAIT);
     g_AnmManager->SetActiveSprite(&this->impl->enemySpellcardPortrait, ANM_SPRITE_FACE_STAGE_START + spellcardSprite);
     g_AnmManager->SetAndExecuteScriptIdx(&this->impl->enemySpellcardName, ANM_SCRIPT_TEXT_ENEMY_SPELLCARD_NAME);
+#ifdef __3DS__
+    TextHelper::Wrapped(&this->impl->enemySpellcardName,spellcardName,COLOR_WHITE,COLOR_RGB(COLOR_BLACK),290,false,false,true,true,TextHelper::FontRole::SpellTitle);
+    CtrBossSpellHud::Begin();
+#else
     g_AnmManager->DrawStringFormat(&this->impl->enemySpellcardName, 0xfff0f0, COLOR_RGB(COLOR_BLACK), "%s", spellcardName);
+#endif
     this->blueSpellcardBarLength = std::strlen(spellcardName) * 15 / 2.0f + 16.0f;
     g_SoundPlayer.PlaySoundByIdx(SOUND_BOMB);
     return;
@@ -544,8 +561,13 @@ ZunResult Gui::ActualAddedCallback()
 #endif
     this->impl->songNameSprite.fontWidth = 16;
     this->impl->songNameSprite.fontHeight = 16;
+#ifdef __3DS__
+    char songTitle[512];std::snprintf(songTitle,sizeof(songTitle),TH_SONG_NAME,g_Stage.stdData->songNames[0]);
+    TextHelper::Wrapped(&this->impl->songNameSprite,songTitle,COLOR_RGB(COLOR_LIGHTCYAN),COLOR_RGB(COLOR_BLACK),280,true,false,false,false,TextHelper::FontRole::MusicTitle);
+#else
     g_AnmManager->DrawStringFormat(&this->impl->songNameSprite, COLOR_RGB(COLOR_LIGHTCYAN), COLOR_RGB(COLOR_BLACK),
                                    TH_SONG_NAME, g_Stage.stdData->songNames[0]);
+#endif
     this->impl->msg.currentMsgIdx = 0xffffffff;
 #ifdef __3DS__
     CtrPlayfieldText::ResetDialoguePanel();
@@ -650,8 +672,7 @@ void GuiImpl::MsgRead(i32 msgIdx)
     this->msg.msgFile = msgFile;
     this->msg.instrs = msgInstrs;
     this->msg.currentInstr = this->msg.instrs[msgIdx];
-    this->msg.dialogueLines[0].anmFileIndex = -1;
-    this->msg.dialogueLines[1].anmFileIndex = -1;
+    for(auto& line:this->msg.dialogueLines)line.anmFileIndex=-1;
     this->msg.fontSize = 15;
     this->msg.textColorsA[0] = COLOR_RGB(COLOR_GUI_1);
     this->msg.textColorsA[1] = COLOR_RGB(COLOR_GUI_2);
@@ -684,7 +705,7 @@ ZunResult GuiImpl::RunMsg()
         ((g_CurFrameInput & ~g_LastFrameInput)&TH_BUTTON_SELECTMENU)!=0:
         CtrLatchedInput::Pressed(TH_BUTTON_SELECTMENU)!=0;
     Action action=confirm && CtrDialogue::Active() && this->msg.currentInstr->opcode!=MSG_OPCODE_MSGHALT?
-        (CtrDialogue::Revealing() || this->msg.currentInstr->opcode!=MSG_OPCODE_WAIT?Action::Finish:Action::Next):Action::None;
+        (CtrDialogue::Revealing()?Action::Finish:Action::Next):Action::None;
     bool fastForward=action!=Action::None;
 
 #endif
@@ -704,6 +725,12 @@ ZunResult GuiImpl::RunMsg()
     {
 #ifdef __3DS__
         const int op=this->msg.currentInstr->opcode;
+        const bool paragraphBoundary=(op==MSG_OPCODE_TEXTDIALOGUE && this->msg.currentInstr->args.text.textLine==0) || op==MSG_OPCODE_MSGDELETE;
+        if(paragraphBoundary && CtrDialogue::Active()) {
+            if(action==Action::Finish) {CtrDialogue::Finish();goto SKIP_TIME_INCREMENT;}
+            if(action==Action::None && !(this->msg.dialogueSkippable && IS_PRESSED(TH_BUTTON_SKIP)) && !CtrDialogue::AutoAdvanceReady())
+                goto SKIP_TIME_INCREMENT;
+        }
         // A paragraph skip must not accelerate results, scene changes or a
         // script halt. Preserve the native presentation timeline at boundaries.
         if(fastForward && (op==MSG_OPCODE_STAGERESULTS || op==MSG_OPCODE_STAGEEND || op==MSG_OPCODE_MSGHALT)) {
@@ -739,14 +766,19 @@ ZunResult GuiImpl::RunMsg()
 #ifdef __3DS__
             if(action==Action::Next && args->text.textLine==0) {action=Action::None;fastForward=false;}
             CtrDialogue::StartLine(args->text.textLine,args->text.text,this->msg.fontSize);
+            if(args->text.textLine==0)CtrDecorations::DialogueSpeaker(args->text.textColor);
 #endif
-            if (args->text.textLine == 0 && 0 <= this->msg.dialogueLines[1].anmFileIndex)
+            if(args->text.textLine<0 || args->text.textLine>=int(std::size(this->msg.dialogueLines)))break;
+            if (args->text.textLine == 0)
             {
-                g_AnmManager->DrawVmTextFmt(&this->msg.dialogueLines[1], this->msg.textColorsA[args->text.textColor],
-                                            this->msg.textColorsB[args->text.textColor], " ");
+                for(size_t i=1;i<std::size(this->msg.dialogueLines);i++)
+                    this->msg.dialogueLines[i].flags.isVisible=0;
             }
             g_AnmManager->SetAndExecuteScriptIdx(&this->msg.dialogueLines[args->text.textLine],
-                                                 0x702 + args->text.textLine);
+                                                 0x702 + std::min<int>(args->text.textLine,1));
+#ifdef __3DS__
+            if(args->text.textLine==2)CtrDialogue::BindOverflow(this->msg.dialogueLines[2]);
+#endif
             this->msg.dialogueLines[args->text.textLine].fontWidth =
                 this->msg.dialogueLines[args->text.textLine].fontHeight = this->msg.fontSize;
             g_AnmManager->DrawVmTextFmt(&this->msg.dialogueLines[args->text.textLine],
@@ -769,7 +801,8 @@ ZunResult GuiImpl::RunMsg()
             if(action==Action::Next)break;
             if(confirm && !CtrDialogue::Active())break;
             if(this->msg.dialogueSkippable && IS_PRESSED(TH_BUTTON_SKIP))CtrDialogue::Finish();
-            else if(CtrDialogue::Revealing() || this->msg.framesElapsedDuringPause<this->msg.currentInstr->args.wait) {
+            else if(CtrDialogue::Revealing())goto SKIP_TIME_INCREMENT;
+            else if(this->msg.framesElapsedDuringPause<this->msg.currentInstr->args.wait) {
                 ++this->msg.framesElapsedDuringPause;goto SKIP_TIME_INCREMENT;
             }
 #else
@@ -793,6 +826,10 @@ ZunResult GuiImpl::RunMsg()
             else
             {
                 this->msg.dialogueLines[args->anmInterrupt.unk1 - 2].pendingInterrupt = args->anmInterrupt.unk2;
+#ifdef __3DS__
+                if(args->anmInterrupt.unk1==3)
+                    this->msg.dialogueLines[2].pendingInterrupt=args->anmInterrupt.unk2;
+#endif
             }
             break;
         case MSG_OPCODE_ECLRESUME:
@@ -805,9 +842,17 @@ ZunResult GuiImpl::RunMsg()
 #endif
             this->songNameSprite.fontWidth = 16;
             this->songNameSprite.fontHeight = 16;
+#ifdef __3DS__
+            {
+                char songTitle[512];std::snprintf(songTitle,sizeof(songTitle),TH_SONG_NAME,
+                    g_Stage.stdData->songNames[this->msg.currentInstr->args.music]);
+                TextHelper::Wrapped(&this->songNameSprite,songTitle,COLOR_RGB(COLOR_LIGHTCYAN),COLOR_RGB(COLOR_BLACK),280,true,false,false,false,TextHelper::FontRole::MusicTitle);
+            }
+#else
             g_AnmManager->DrawStringFormat(&this->songNameSprite, COLOR_RGB(COLOR_LIGHTCYAN), COLOR_RGB(COLOR_BLACK),
                                            TH_SONG_NAME,
                                            g_Stage.stdData->songNames[this->msg.currentInstr->args.music]);
+#endif
             if (g_Supervisor.PlayMidiFile(this->msg.currentInstr->args.music) != ZUN_SUCCESS)
             {
                 g_Supervisor.PlayAudio(g_Stage.stdData->songPaths[this->msg.currentInstr->args.music]);
@@ -890,8 +935,7 @@ SKIP_TIME_INCREMENT:
 #endif
     g_AnmManager->ExecuteScript(&this->msg.portraits[0]);
     g_AnmManager->ExecuteScript(&this->msg.portraits[1]);
-    g_AnmManager->ExecuteScript(&this->msg.dialogueLines[0]);
-    g_AnmManager->ExecuteScript(&this->msg.dialogueLines[1]);
+    for(auto& line:this->msg.dialogueLines)g_AnmManager->ExecuteScript(&line);
     g_AnmManager->ExecuteScript(&this->msg.introLines[0]);
     g_AnmManager->ExecuteScript(&this->msg.introLines[1]);
     if ((i32)(this->msg.timer.current < 60) && this->msg.dialogueSkippable && IS_PRESSED(TH_BUTTON_SKIP))
@@ -991,6 +1035,12 @@ ZunResult GuiImpl::DrawDialogue() const
     }
 #endif
 
+    // A previous additive bullet makes black panels invisible. Establish the
+    // panel's normal alpha blend explicitly before submitting its vertices.
+    AnmVm panelState{};
+    panelState.flags.blendMode=AnmVmBlendMode_InvSrcAlpha;
+    panelState.flags.zWriteDisable=1;
+    g_AnmManager->SetRenderStateForVm(&panelState);
     g_AnmManager->SetColorOp(COMPONENT_ALPHA, COLOR_OP_REPLACE);
     g_AnmManager->SetColorOp(COMPONENT_RGB, COLOR_OP_REPLACE);
 
@@ -1053,6 +1103,7 @@ void Gui::UpdateStageElements()
 {
 #ifdef __3DS__
     CtrBossHealthBar::Tick();
+    CtrBossSpellHud::Tick();
 #endif
     i32 stageScore;
     i32 idx;
@@ -1330,7 +1381,11 @@ void Gui::DrawGameScene()
         {
             g_SoundPlayer.PlaySoundByIdx(SOUND_1D);
         }
+#ifdef __3DS__
+        CtrPlayfieldText::QueueBossTimer(textPos,cappedSpellcardSecondsRemaining);
+#else
         g_AsciiManager.AddFormatText(&textPos, "%.2d", cappedSpellcardSecondsRemaining);
+#endif
         g_AsciiManager.color = COLOR_WHITE;
         this->lastSpellcardSecondsRemaining = this->spellcardSecondsRemaining;
     }
@@ -1691,6 +1746,9 @@ ZunResult Gui::AddedCallback(Gui *gui)
 
 ZunResult Gui::DeletedCallback(Gui *gui)
 {
+#ifdef __3DS__
+    CtrDialogue::ReleaseOverflow();
+#endif
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_A);
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_B);
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_C);

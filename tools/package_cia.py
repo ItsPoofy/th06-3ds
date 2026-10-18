@@ -21,5 +21,5 @@ with tempfile.TemporaryDirectory(prefix='th06-banner-') as temporary:
                     '-a', str(silence), '-o', str(build/'th06.bnr')], check=True)
 subprocess.run([args.makerom, '-f', 'cia', '-o', str(build/'th06.cia'), '-rsf', str(root/'packaging/th06.rsf'),
                 '-target', 't', '-elf', str(build/'th06.elf'), '-icon', str(build/'th06.smdh'),
-                '-banner', str(build/'th06.bnr'), '-desc', 'app:4', '-major', '1', '-minor', '0', '-micro', '0'], check=True)
+                '-banner', str(build/'th06.bnr'), '-desc', 'app:4', '-major', '1', '-minor', '0', '-micro', '2'], check=True)
 print(build/'th06.cia')

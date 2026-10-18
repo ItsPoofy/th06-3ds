@@ -21,5 +21,6 @@ namespace CtrPlayfieldText {
     void DrawSpellcard(const AnmVm& source,const AnmVm& background);
     void DrawDialogue(const AnmVm* lines);
     void QueueBonus(const ZunVec3& position,int score,int frames,int fadeOutFrame=-1);
+    void QueueBossTimer(const ZunVec3& originalPosition,int seconds);
     void EnlargeAscii(ZunVec3& position,ZunVec2& scale,const char* text,bool stageResults=false);
 }

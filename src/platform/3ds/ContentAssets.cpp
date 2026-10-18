@@ -11,7 +11,7 @@ bool Exists(const std::string& path) {
 }
 }
 std::string CtrContent::Path(const char* directory,const char* name) {
-    const std::string base=std::string("sdmc:/3ds/th06/assets/")+directory+"/"+name;
+    const std::string base=std::string(TH06_ASSET_ROOT)+directory+"/"+name;
     // The port's expanded display backgrounds are independent of the pack.
     // Retexture applies to game sprites/tiles, never to these fitted surfaces.
     if(std::string_view(name).ends_with(".jpg.bin") || std::string_view(name).ends_with(".bmp.bin"))return base;
@@ -19,7 +19,10 @@ std::string CtrContent::Path(const char* directory,const char* name) {
     // choices select pixel sheets, not duplicate animation files or scripts.
     if(!strcmp(directory,"data") && std::string_view(name).ends_with(".anm"))return base;
     const bool texture=!strcmp(directory,"textures"),data=!strcmp(directory,"data");
-    auto candidate=[&](const char* variant) {return std::string("sdmc:/3ds/th06/assets/variants/")+variant+"/"+directory+"/"+name;};
+    auto candidate=[&](const char* variant) {return std::string(TH06_ASSET_ROOT "variants/")+variant+"/"+directory+"/"+name;};
+    if(!strcmp(directory,"ui") && !strcmp(name,"gameplay-material.bin") && CtrSettings::Retexture()) {
+        const auto path=candidate("retexture");if(Exists(path))return path;
+    }
     // Reimu and the focus indicator are independent of the graphics pack.
     if((texture || data) && (!strncmp(name,"player00.",9) || !strncmp(name,"face00",6))) {
         const auto path=candidate(CtrSettings::NewSprites()?"reimu-new":"reimu-old");

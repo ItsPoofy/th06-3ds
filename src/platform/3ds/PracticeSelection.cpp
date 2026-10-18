@@ -28,7 +28,7 @@ void Label(const char* text,float x,float y,bool selected,unsigned alpha,bool ce
     CtrPresentation::DrawText(text,x,y,selected,alpha,centered);
 }
 }
-bool CtrPractice::Initialize() {return atlas.ready || atlas.Load("sdmc:/3ds/th06/assets/ui/practice-font.bin");}
+bool CtrPractice::Initialize() {return atlas.ready || atlas.Load(TH06_ASSET_ROOT "ui/practice-font.bin");}
 void CtrPractice::Shutdown() {atlas.Clear();}
 int CtrPractice::Count() {return 6;}
 int CtrPractice::UnlockedCount() {

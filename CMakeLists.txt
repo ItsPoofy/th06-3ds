@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 project(th06_3ds LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
+option(TH06_EMBED_ASSETS "Embed prepared assets in an internal testing 3DSX" OFF)
+set(TH06_ASSET_DIR "" CACHE PATH "Prepared assets folder for the integrated 3DSX")
 find_package(SDL2 REQUIRED CONFIG)
 find_package(SDL2_image REQUIRED CONFIG)
 find_package(SDL2_ttf REQUIRED CONFIG)
@@ -14,6 +16,7 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/GameplayLogo.cpp
     src/platform/3ds/PauseMenu.cpp
     src/platform/3ds/ExtraRecordsCode.cpp
+    src/platform/3ds/RecordsLayout.cpp
     src/platform/3ds/ResultKeyboard.cpp
     src/platform/3ds/Touch.cpp
     src/platform/3ds/Presentation.cpp
@@ -36,6 +39,8 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/BossPresentation.cpp
     src/platform/3ds/DialogueReveal.cpp
     src/platform/3ds/PlayfieldText.cpp
+    src/platform/3ds/BossSpellHud.cpp
+    src/platform/3ds/SpellTitleDecoration.cpp
     src/platform/3ds/FocusEffect.cpp
     src/platform/3ds/StageDepth.cpp
     src/platform/3ds/CharacterInfo.cpp
@@ -62,4 +67,16 @@ add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/generated/scene_shader.hp
     DEPENDS src/platform/3ds/scene.v.pica tools/embed_shader.py VERBATIM)
 target_sources(th06 PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated/scene_shader.hpp")
 ctr_generate_smdh(OUTPUT th06.smdh NAME "Touhou 6" DESCRIPTION "Touhou 6 for the 3DS" AUTHOR "ItsPoofy" ICON "${CMAKE_CURRENT_SOURCE_DIR}/assets/icon.png")
-ctr_create_3dsx(th06 SMDH th06.smdh)
+if(TH06_EMBED_ASSETS)
+    get_filename_component(TH06_ASSET_DIR "${TH06_ASSET_DIR}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    if(NOT EXISTS "${TH06_ASSET_DIR}/asset-version.txt")
+        message(FATAL_ERROR "TH06_ASSET_DIR must point to a complete converter-generated assets folder")
+    endif()
+    target_compile_definitions(th06 PRIVATE TH06_EMBED_ASSETS=1)
+    file(GLOB_RECURSE TH06_EMBEDDED_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false "${TH06_ASSET_DIR}/*")
+    dkp_add_asset_target(th06_romfs "${TH06_ASSET_DIR}")
+    set_property(TARGET th06_romfs PROPERTY DKP_ASSET_FILES "${TH06_EMBEDDED_FILES}")
+    ctr_create_3dsx(th06 SMDH th06.smdh ROMFS th06_romfs OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/th06-integrated.3dsx")
+else()
+    ctr_create_3dsx(th06 SMDH th06.smdh)
+endif()

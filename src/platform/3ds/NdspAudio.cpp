@@ -44,7 +44,7 @@ struct Guard {Guard(){LightLock_Lock(&musicLock);}~Guard(){LightLock_Unlock(&mus
 std::string Path(const char* input,const char* ext) {
  auto name=CtrAssets::Normalize(input);name=name.substr(name.find_last_of('/')+1);
  if(auto dot=name.find_last_of('.');dot!=std::string::npos)name.resize(dot);
- return "sdmc:/3ds/th06/assets/audio/"+name+ext;
+ return TH06_ASSET_ROOT "audio/"+name+ext;
 }
 void Mix(int channel,float left,float right) {float mix[12]{};mix[0]=left;mix[1]=right;ndspChnSetMix(channel,mix);}
 void StopLocked() {
@@ -165,7 +165,7 @@ void CtrAudio::FadeMusic(float seconds) {
 bool CtrAudio::LoadEffect(int id,const char* path,float gain) {
  auto filename=Path(path,".pcm");
  const auto slash=filename.find_last_of('/');
- filename="sdmc:/3ds/th06/assets/variants/sound-"+std::string(CtrSettings::SoundPackName())+"/audio/"+filename.substr(slash+1);
+ filename=TH06_ASSET_ROOT "variants/sound-"+std::string(CtrSettings::SoundPackName())+"/audio/"+filename.substr(slash+1);
  if(!initialized)return false;
  if(CtrSfx::Load(id,filename.c_str(),gain))return true;
  if(CtrSettings::SoundPack()!=0 && CtrSfx::Load(id,Path(path,".pcm").c_str(),gain))return true;

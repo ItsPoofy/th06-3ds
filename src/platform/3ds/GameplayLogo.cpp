@@ -7,7 +7,7 @@ CtrAssets::PackedTexture atlas;
 struct Part {Tex3DS_SubTexture sub{};float x=0,y=0,sx=1,sy=1,angle=0;unsigned color=0;};
 Part parts[6];
 }
-bool CtrGameplayLogo::Initialize() {return atlas.Load("sdmc:/3ds/th06/assets/ui/gameplay-logo-atlas.bin");}
+bool CtrGameplayLogo::Initialize() {return atlas.Load(TH06_ASSET_ROOT "ui/gameplay-logo-atlas.bin");}
 void CtrGameplayLogo::Shutdown() {atlas.Clear();for(auto& part:parts)part={};}
 void CtrGameplayLogo::Capture(const AnmVm* vms) {
     constexpr int order[]={5,0,1,3,4,2};

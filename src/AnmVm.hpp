@@ -102,7 +102,7 @@ struct AnmVm
     void Initialize()
     {
 #ifdef __3DS__
-        ctrTextStart=ctrTextWidth=0;
+        ctrTextStart=ctrTextWidth=ctrTextHeight=0;
 #endif
         this->uvScrollPos.y = 0.0;
         this->uvScrollPos.x = 0.0;
@@ -179,7 +179,7 @@ struct AnmVm
     u8 fontWidth;
     u8 fontHeight;
 #ifdef __3DS__
-    float ctrTextStart=0,ctrTextWidth=0;
+    float ctrTextStart=0,ctrTextWidth=0,ctrTextHeight=0;
 #endif
     // Two final padding bytes
 };

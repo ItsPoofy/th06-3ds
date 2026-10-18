@@ -10,13 +10,50 @@ import numpy as np
 from PIL import Image
 
 def plain(text):
-    return re.sub(r'<c\$([^$]*)\$[^>]*>', r'\1', text).replace('　', ' ').strip()
+    # thcrap's inline style/ruby wrappers carry the visible text first.
+    while re.search(r'<[A-Za-z]+\$', text):
+        stripped = re.sub(r'<[A-Za-z]+\$([^$<>]*)(?:\$[^<>]*)?>', r'\1', text)
+        if stripped == text:
+            break
+        text = stripped
+    return text.replace('　', ' ').strip()
 
-def message(data, patch):
+def dialogue_rows(text, font=None, limit=2*(368/1.25-4)):
+    if '\n' in text:
+        return [row for paragraph in text.split('\n')
+                for row in dialogue_rows(paragraph, font, limit)]
+    if font is None:
+        return textwrap.wrap(text, width=36, break_long_words=False, break_on_hyphens=False) or [' ']
+    # Rendered at 2x, then drawn at the largest playfield text scale (1.25x).
+    rows, line = [], ''
+    for word in text.split():
+        candidate = (line+' '+word).strip()
+        if font.getlength(candidate) <= limit:
+            line = candidate
+            continue
+        if line:
+            rows.append(line)
+            line = ''
+        for char in word:
+            if line and font.getlength(line+char) > limit:
+                rows.append(line)
+                line = ''
+            line += char
+    if line:
+        rows.append(line)
+    return rows or [' ']
+
+
+def message(data, patch, font=None):
     count = struct.unpack_from('<I', data)[0]
+    original_offsets = struct.unpack_from(f'<{count}I', data, 4)
+    # Several route entries share the same physical script. thcrap supplies
+    # its translation once, so every alias must inherit that translation.
+    translated_offsets = {original_offsets[int(index)]: translation
+                          for index, translation in patch.items() if int(index) < count}
     scripts = []
     for index in range(count):
-        pos = struct.unpack_from('<I', data, 4 + index * 4)[0]
+        pos = original_offsets[index]
         instructions = []
         while pos + 4 <= len(data):
             time, op, size = struct.unpack_from('<HBB', data, pos)
@@ -25,7 +62,7 @@ def message(data, patch):
             pos += 4 + size
             if op == 0:
                 break
-        translations = patch.get(str(index), {})
+        translations = patch.get(str(index), translated_offsets.get(original_offsets[index], {}))
         counters = {}
         skip_continuation = False
         result = bytearray()
@@ -48,13 +85,12 @@ def message(data, patch):
                     lines = [plain(s) for s in translated['lines']]
                     if op == 3:
                         # Keep readable type. Long English paragraphs get extra
-                        # two-line pages using the same immediate confirm logic.
-                        lines = textwrap.wrap(' '.join(lines), width=44,
-                                              break_long_words=False, break_on_hyphens=False) or [' ']
+                        # three-line pages using the same immediate confirm logic.
+                        lines = dialogue_rows(' '.join(lines), font)
                         for n, text in enumerate(lines):
-                            if n and n % 2 == 0:
+                            if n and n % 3 == 0:
                                 emit(time, 4, struct.pack('<i', 300))
-                            emit(time, op, struct.pack('<hh', color, n % 2) + text.encode('utf-8') + b'\0')
+                            emit(time, op, struct.pack('<hh', color, n % 3) + text.encode('utf-8') + b'\0')
                         skip_continuation = True
                     else:
                         for n, text in enumerate(lines):
@@ -63,8 +99,6 @@ def message(data, patch):
                     continue
                 if skip_continuation and line == 1:
                     continue
-                skip_continuation = False
-            if op == 4:
                 skip_continuation = False
             emit(time, op, args)
         scripts.append(result)
@@ -75,7 +109,7 @@ def message(data, patch):
         offset += len(script)
     return struct.pack('<I', count) + struct.pack(f'<{count}I', *offsets) + b''.join(scripts)
 
-def ending(data, patch):
+def ending(data, patch, font=None):
     lines = data.splitlines(keepends=True)
     result = []
     index = 0
@@ -86,8 +120,9 @@ def ending(data, patch):
             text = ' '.join(plain(s) for s in entry['lines'])
             # The original parser displays two lines per page. Reflow all
             # words into those pages, leaving its control instructions intact.
-            wrapped = textwrap.wrap(text, width=62, break_long_words=False,
-                                    break_on_hyphens=False) or [' ']
+            wrapped = dialogue_rows(text, font, limit=960) if font else (
+                textwrap.wrap(text, width=62, break_long_words=False,
+                              break_on_hyphens=False) or [' '])
             for n, line in enumerate(wrapped):
                 if n and n % 2 == 0:
                     result.append(b'@w1200\0' + b'4\0\n')
@@ -101,8 +136,6 @@ def ending(data, patch):
     return b''.join(result)
 
 def image_texture(assets, name):
-    from stage_backgrounds import complete_surface
-    from score_digits import regular_score_digits
     data = assets[name]
     fields = struct.unpack_from('<16I', data)
     width, height, fmt, offset, alpha_offset = fields[3], fields[4], fields[5], fields[7], fields[9]
@@ -117,4 +150,4 @@ def image_texture(assets, name):
         image.putalpha(255)
     if fmt == 5:
         image = Image.fromarray((np.asarray(image) >> 4) * 17)
-    return regular_score_digits(name, complete_surface(name, image))
+    return image

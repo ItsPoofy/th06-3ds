@@ -2,6 +2,7 @@
 #ifdef __3DS__
 #include "platform/3ds/ResultKeyboard.hpp"
 #include "platform/3ds/ExtraRecordsCode.hpp"
+#include "platform/3ds/RecordsLayout.hpp"
 #endif
 #include "ResultScreen.hpp"
 #include "AnmManager.hpp"
@@ -1669,6 +1670,9 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
         {
 
             resultScreen->lastSpellcardSelected = resultScreen->cursor;
+#ifdef __3DS__
+            CtrRecords::PrepareSpellPage(*resultScreen);
+#else
             for (i = resultScreen->lastSpellcardSelected * 10; i < resultScreen->lastSpellcardSelected * 10 + 10; i++)
             {
                 if (i >= ARRAY_SIZE_SIGNED(g_GameManager.catk))
@@ -1686,12 +1690,19 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
                                                 COLOR_RGB(COLOR_BLACK), g_GameManager.catk[i].name);
                 }
             }
+#endif
         }
         if (resultScreen->frameTimer < 30)
         {
             break;
         }
-        if (ResultScreen::MoveCursorHorizontally(resultScreen, 7))
+        if (ResultScreen::MoveCursorHorizontally(resultScreen,
+#ifdef __3DS__
+            CtrRecords::PageCount()
+#else
+            7
+#endif
+        ))
         {
             resultScreen->frameTimer = 0;
             vm = &resultScreen->unk_40[0];
@@ -1778,6 +1789,7 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
     {
         spritePos = sprite->pos;
         sprite->pos += sprite->posOffset;
+
         g_AnmManager->DrawNoRotation(sprite);
         sprite->pos = spritePos;
     }
@@ -1902,6 +1914,9 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
         else
         {
 
+#ifdef __3DS__
+            CtrRecords::DrawSpellPage(*resultScreen,sprite->pos);
+#else
             spritePos = sprite->pos;
             spritePos.y += 16.0f;
 
@@ -1939,6 +1954,7 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
                 spritePos.x -= 368.0f;
                 spritePos.y += 30.0f;
             }
+#endif
         }
     }
 #ifndef __3DS__

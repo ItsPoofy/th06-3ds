@@ -6,6 +6,8 @@
 #include "GameplayLayout.hpp"
 #include "GameDecorations.hpp"
 #include "BossHealthBar.hpp"
+#include "BossSpellHud.hpp"
+#include "SpellTitleDecoration.hpp"
 #include "SelectionLayout.hpp"
 #include "PauseMenu.hpp"
 #include "Supervisor.hpp"
@@ -62,6 +64,8 @@ bool CtrRenderer::Start() {
     if(!menuLayer.Initialize()) {CtrRuntime::Log("Renderer: menu layer failed");return false;}
     if(!CtrPresentation::Initialize()) {CtrRuntime::Log("Renderer: UI assets failed");return false;}
     if(!CtrBossHealthBar::Initialize(*this)) {CtrRuntime::Log("Renderer: boss bar texture failed");return false;}
+    CtrBossSpellHud::Initialize(*this);
+    CtrSpellTitleDecoration::Initialize(*this);
     for(auto& m:matrices) m.Identity();
     // Run before citro3d's hook so pending geometry is submitted before
     // its suspend handler drains the GPU queue and disables VBlank callbacks.
@@ -94,6 +98,8 @@ CtrRenderer::~CtrRenderer() {
     PrepareForExit();
     if(lifecycleHooked)aptUnhook(&lifecycleHook);
     CtrBossHealthBar::Shutdown(*this);
+    CtrBossSpellHud::Shutdown(*this);
+    CtrSpellTitleDecoration::Shutdown(*this);
     textures.clear(); retired.clear();
     CtrPresentation::Shutdown();
     menuLayer.Shutdown();
@@ -363,7 +369,8 @@ void CtrRenderer::Draw(PrimitiveType type,i32 first,i32 count) {
         for(int row=0;row<4;row++) {
             float values[4];
             for(int col=0;col<4;col++)
-                values[col]=row==2?(clipMatrix.m[col][2]-clipMatrix.m[col][3])*.5f:clipMatrix.m[col][row];
+                values[col]=row==2?(clipMatrix.m[col][2]-clipMatrix.m[col][3])*.5f+
+                    stageDepthBias*clipMatrix.m[col][3]:clipMatrix.m[col][row];
             C3D_FVUnifSet(GPU_VERTEX_SHADER,clipUniform+row,values[0],values[1],values[2],values[3]);
         }
         clipMatrixDirty=false;

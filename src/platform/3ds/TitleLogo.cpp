@@ -22,7 +22,7 @@ void CtrTitleLogo::Tick(MainMenu& menu) {
  }
 }
 void CtrTitleLogo::SubtitleOffset(int index,AnmVm& vm) {
- if(index!=33 || !CtrSettings::English())return;
+ if(index!=33)return;
  // The two 256px sprites include unused width. Close the gap along their
  // rotated baseline, retaining the original positions/easing of every VM.
  vm.pos.x-=24*std::cos(vm.rotation.z);

@@ -18,13 +18,15 @@
 // };
 struct TextHelper
 {
+    enum class FontRole { Standard, SpellTitle, MusicTitle };
     static ZunResult CreateTextBuffer();
     static void ReleaseTextBuffer();
     static void StageCaption(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow);
+    static void Wrapped(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow,int width,bool japaneseSingleLine=false,bool centered=false,bool rightAligned=false,bool outlined=false,FontRole role=FontRole::Standard);
     static void Precache(const char* text,i32 fontHeight);
     static void RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 spriteHeight, i32 fontHeight,
                                     i32 fontWidth, ZunColor textColor, ZunColor shadowColor, const char *string,
-                                    TextureData *outTexture, bool balanceSeparator=false);
+                                    TextureData *outTexture, bool balanceSeparator=false,int* renderedHeight=nullptr,int wrapWidth=230,bool forceWrap=false,bool centered=true,bool rightAligned=false,bool outlined=false,FontRole role=FontRole::Standard);
 
     TextHelper();
     ~TextHelper();

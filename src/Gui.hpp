@@ -73,7 +73,11 @@ struct GuiMsgVm
     ZunTimer timer;
     i32 framesElapsedDuringPause;
     AnmVm portraits[2];
+#ifdef __3DS__
+    AnmVm dialogueLines[3];
+#else
     AnmVm dialogueLines[2];
+#endif
     AnmVm introLines[2];
     ZunColor textColorsA[4];
     ZunColor textColorsB[4];

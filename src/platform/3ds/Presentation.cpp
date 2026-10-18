@@ -15,6 +15,8 @@
 #include "MainMenu.hpp"
 #include "GameManager.hpp"
 #include "AssetPath.hpp"
+#include "CtrRenderer.hpp"
+#include "GameWindow.hpp"
 #include "NativeImage.hpp"
 #include "../../../assets/ui-font/ui_labels.hpp"
 #include <array>
@@ -109,6 +111,10 @@ bool CtrPresentation::Initialize() {
     return EnsureMenuAssets() && CtrSelectionArt::Initialize() && CtrHud::Initialize() &&
         material.Load("gameplay-material") && font.Load("ui-font") && contentFont.Load("content-font");
 }
+bool CtrPresentation::RefreshMaterial() {
+    if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
+    return material.Load("gameplay-material");
+}
 void CtrPresentation::ReleaseMenuAssets() {
     if(!menuAssetsReady)return;
     // Called after submitting the first completed gameplay frame. Preserve
@@ -126,6 +132,7 @@ void CtrPresentation::Shutdown() {
 void CtrPresentation::BeginScene() {CtrSelection::BeginScene();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;}
 void CtrPresentation::MarkScene() {hasScene=true;}
 bool CtrPresentation::HasScene() {return hasScene;}
+bool CtrPresentation::ReplacesSurface(int slot) {return slot==0 && artwork.ready;}
 void CtrPresentation::LoadSurface(int slot,const char* path) {
     if(slot!=0)return;
     if(!EnsureMenuAssets())return;

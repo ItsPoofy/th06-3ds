@@ -3,8 +3,8 @@
 #include "NativeImage.hpp"
 namespace {CtrAssets::PackedTexture portraits[2];}
 bool CtrCharacterPortraits::Initialize() {
-    return portraits[0].Load("sdmc:/3ds/th06/assets/ui/selection-reimu.bin") &&
-           portraits[1].Load("sdmc:/3ds/th06/assets/ui/selection-marisa.bin");
+    return portraits[0].Load(TH06_ASSET_ROOT "ui/selection-reimu.bin") &&
+           portraits[1].Load(TH06_ASSET_ROOT "ui/selection-marisa.bin");
 }
 void CtrCharacterPortraits::Shutdown() {for(auto& portrait:portraits)portrait.Clear();}
 void CtrCharacterPortraits::Draw(int character,float slide,unsigned opacity) {

@@ -5,6 +5,7 @@ import struct
 import numpy as np
 from PIL import Image, ImageOps
 from prepare_assets import write_texture
+from score_digits import regular_score_digits
 from ui_animation_assets import animation
 
 
@@ -40,12 +41,20 @@ def card(root):
     return out
 
 
-def prepare(root, resources):
-    dest = root / 'romfs'
-    ui = dest / 'ui'
-    ui.mkdir()
-    for name in ('ui-font', 'practice-font', 'content-font'):
-        write_texture(ui / (name+'.bin'), Image.open(resources/(name+'.png')))
+def gameplay_material(sheet):
+    material = sheet.convert('RGBA').crop((96, 80, 256, 96))
+    material.putalpha(255)
+    canvas = Image.new('RGBA', (400, 480))
+    for y in range(0, 480, 16):
+        for x in range(0, 400, 160):
+            tile = ImageOps.mirror(material) if x//160 % 2 else material
+            if y//16 % 2:
+                tile = ImageOps.flip(tile)
+            canvas.paste(tile, (x, y))
+    return canvas
+
+
+def selection_atlas(root, resources, lang):
     original = {'difficulty-card': card(root)}
     mapping = {'name-bar': 22, 'player-name-bar': 21, 'hud-high': 9,
                'hud-score': 8, 'hud-player': 10, 'hud-bomb': 11,
@@ -55,17 +64,26 @@ def prepare(root, resources):
         original[name] = sprite(root, 'front.anm', index)
     for i in range(10):
         original['hud-digit'+str(i)] = sprite(root, 'ascii.anm', ord(str(i))-0x15)
+    atlas = Image.open(resources/f'selection-{lang}.png').convert('RGBA')
+    positions = json.loads((resources/f'selection-{lang}.json').read_text())
+    for name, tile in original.items():
+        if lang == 'en' and name.startswith('hud-') and name not in ('hud-life-star', 'hud-bomb-star') and not name.startswith('hud-digit'):
+            continue
+        x, y, w, h = positions[name]
+        atlas.paste(tile.resize((w, h), Image.Resampling.NEAREST), (x, y))
+    return atlas
+
+
+def prepare(root, resources):
+    dest = root / 'romfs'
+    ui = dest / 'ui'
+    ui.mkdir()
+    for name in ('ui-font', 'practice-font', 'content-font'):
+        write_texture(ui / (name+'.bin'), Image.open(resources/(name+'.png')))
     for lang in ('jp', 'en'):
-        atlas = Image.open(resources/f'selection-{lang}.png').convert('RGBA')
-        positions = json.loads((resources/f'selection-{lang}.json').read_text())
-        for name, tile in original.items():
-            if lang == 'en' and name.startswith('hud-') and name not in ('hud-life-star', 'hud-bomb-star') and not name.startswith('hud-digit'):
-                continue
-            x, y, w, h = positions[name]
-            atlas.paste(tile.resize((w, h), Image.Resampling.NEAREST), (x, y))
         path = ui if lang == 'jp' else dest/'variants/en/ui'
         path.mkdir(parents=True, exist_ok=True)
-        write_texture(path/'selection-atlas.bin', atlas)
+        write_texture(path/'selection-atlas.bin', selection_atlas(root, resources, lang))
     for source in (resources/'backgrounds').glob('*.png'):
         image = Image.open(source).convert('RGBA')
         write_texture(ui/(source.stem+'.bin'), image)
@@ -75,35 +93,10 @@ def prepare(root, resources):
                 size = Image.open(raw).size
                 center = image.crop((40, 0, 360, 240)).resize(size, Image.Resampling.NEAREST)
                 write_texture(dest/'textures'/(raw.name+'.bin'), center)
-    material = Image.open(dest/'data/front.png').convert('RGBA').crop((96, 80, 256, 96))
-    material.putalpha(255)
-    canvas = Image.new('RGBA', (400, 480))
-    for y in range(0, 480, 16):
-        for x in range(0, 400, 160):
-            tile = ImageOps.mirror(material) if x//160 % 2 else material
-            if y//16 % 2:
-                tile = ImageOps.flip(tile)
-            canvas.paste(tile, (x, y))
-    write_texture(ui/'gameplay-material.bin', canvas)
+    write_texture(ui/'gameplay-material.bin', gameplay_material(Image.open(dest/'data/front.png')))
     write_texture(ui/'gameplay-logo-atlas.bin', animation(root, 'front.anm')[2])
-    # Derive character cutouts from the player's own selection sheets.
-    for index, character in enumerate(('reimu', 'marisa')):
-        top = animation(root, f'slpl0{index}a.anm')[2]
-        lower = animation(root, f'slpl0{index}b.anm')[2]
-        lower.paste((0, 0, 0, 0), (0, 100, lower.width, lower.height))
-        joined = Image.new('RGBA', (top.width, top.height+100))
-        joined.paste(top, (0, 0)); joined.paste(lower.crop((0, 0, lower.width, 100)), (0, top.height))
-        joined = joined.crop(joined.getbbox())
-        scale = min(160/joined.width, 240/joined.height)
-        portrait = joined.resize((round(joined.width*scale), round(joined.height*scale)), Image.Resampling.LANCZOS)
-        shadow = joined.resize((round(joined.width*scale*1.25), round(joined.height*scale*1.25)), Image.Resampling.LANCZOS)
-        shadow.putalpha(shadow.getchannel('A').point(lambda v: round(v*.32)))
-        panel = Image.new('RGBA', (160, 240))
-        panel.alpha_composite(shadow, ((160-portrait.width)//2-24, 240-portrait.height-12))
-        panel.alpha_composite(portrait, ((160-portrait.width)//2, 240-portrait.height))
-        write_texture(ui/f'selection-{character}.bin', panel)
-        # Remove the old captions that the port draws separately.
-        write_texture(dest/'textures'/f'slpl0{index}b.anm.bin', lower)
+    # bundled_content installs fitted panels and clean native lower sheets;
+    # the original sheets still have captions where we draw separate labels.
     localized = dest/'variants/en/textures'
     localized.mkdir(parents=True, exist_ok=True)
     for overlay in resources.glob('*.overlay.png'):
@@ -112,4 +105,4 @@ def prepare(root, resources):
         replacement = Image.open(overlay).convert('RGBA')
         mask = Image.open(resources/(name+'.mask.png'))
         base.paste(replacement, (0, 0), mask)
-        write_texture(localized/name, base)
+        write_texture(localized/name, regular_score_digits(name.removesuffix('.bin'), base))

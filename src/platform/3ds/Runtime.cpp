@@ -3,11 +3,13 @@
 #include "DisplaySettings.hpp"
 #include "Settings.hpp"
 #include "Touch.hpp"
+#include "AssetRoot.hpp"
 #include <3ds.h>
 #include <SDL2/SDL.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <malloc.h>
 namespace {
@@ -39,7 +41,11 @@ bool CtrRuntime::Initialize() {
     mkdir("sdmc:/3ds/th06",0755);
     if(chdir("sdmc:/3ds/th06")) return false;
     FILE* f=fopen("startup.log","w");if(f)fclose(f);
-    f=fopen("sdmc:/3ds/th06/assets/asset-version.txt","rb");
+#ifdef TH06_EMBED_ASSETS
+    if(R_FAILED(romfsInit())) {Log("Failed to mount embedded assets");return false;}
+    std::atexit([]{romfsExit();});
+#endif
+    f=fopen(TH06_ASSET_ROOT "asset-version.txt","rb");
     if(!f) {
         gfxInitDefault();
         consoleInit(GFX_BOTTOM,nullptr);

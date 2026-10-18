@@ -6,17 +6,29 @@
 #include "TextSizes.hpp"
 #include "DialogueReveal.hpp"
 #include "AsciiManager.hpp"
+#include "Settings.hpp"
+#include "BossHealthBar.hpp"
+#include "BossSpellHud.hpp"
+#include "SpellTitleLayout.hpp"
+#include "BossSpellLayout.hpp"
+#include "SpellTitleDecoration.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
 
-namespace {int musicFrame=450;bool musicBlocked=false;float dialoguePanel=0;}
+namespace {
+int musicFrame=450;bool musicBlocked=false;float dialoguePanel=0;
+bool ModernBossLayout() {return CtrSettings::Enabled(CtrSettings::Toggle::BossBar) && CtrBossHealthBar::Available();}
+}
 void CtrPlayfieldText::ResetDialoguePanel() {dialoguePanel=0;}
 void CtrPlayfieldText::TickDialoguePanel(bool visible) {
     dialoguePanel=std::clamp(dialoguePanel+(visible?1.f/12:-1.f/18),0.f,1.f);
 }
 float CtrPlayfieldText::DialoguePanelOpacity() {return dialoguePanel*dialoguePanel*(3-2*dialoguePanel);}
-float CtrPlayfieldText::DialogueTop() {return 464.f-CtrLayout::NameCardHeight/CtrLayout::Scale();}
+float CtrPlayfieldText::DialogueTop() {
+    const float textHeight=12+28*std::max(0,CtrDialogue::LineCount()-1)+20*Scale()+8;
+    return 464.f-std::max(CtrLayout::NameCardHeight/CtrLayout::Scale(),textHeight);
+}
 float CtrPlayfieldText::ResultsLeft() {
     char score[16];std::snprintf(score,sizeof(score),"%8d",g_Gui.impl?g_Gui.impl->stageScore:0);
     const float columns=std::max(20,int(12+std::strlen(score)));
@@ -111,11 +123,14 @@ void CtrPlayfieldText::DrawStageTitle(const AnmVm& source,int stage) {
     caption.posOffset=ZunVec3(0,0,0);caption.rotation=ZunVec3(0,0,0);
     caption.scaleX=1;
     caption.scaleY=1;
-    const float headingHeight=16*size,captionHeight=source.sprite->heightPx*size;
+    const float textHeight=source.ctrTextHeight>0?source.ctrTextHeight:16.f;
+    const float headingHeight=16*size,captionHeight=textHeight*size;
     const float centerX=GAME_REGION_LEFT+GAME_REGION_WIDTH*.5f;
     const float headingTop=224-(headingHeight+12+captionHeight)*.5f;
     caption.pos.x=centerX;caption.pos.y=headingTop+headingHeight+12+captionHeight*.5f;
     auto sprite=*source.sprite;
+    sprite.heightPx=textHeight;
+    sprite.uvEnd.y=(sprite.startPixelInclusive.y+textHeight-.5f)/sprite.textureHeight;
     sprite.uvStart.x+=source.ctrTextStart/sprite.textureWidth;
     sprite.uvEnd.x=sprite.uvStart.x+width/sprite.textureWidth;
     sprite.widthPx=width;
@@ -145,7 +160,11 @@ void CtrPlayfieldText::DrawMusicTitle(const AnmVm& source) {
     auto vm=source;auto sprite=*source.sprite;
     const float width=std::min(source.ctrTextWidth,sprite.widthPx-source.ctrTextStart);
     if(width<=0)return;
-    const float factor=std::min(Scale(),352.f/std::max(1.f,width));
+    if(source.ctrTextHeight>0) {
+        sprite.heightPx=source.ctrTextHeight;
+        sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
+    }
+    const float factor=Scale()*(CtrSettings::English()?.9f:1.f);
     sprite.uvStart.x+=source.ctrTextStart/sprite.textureWidth;
     sprite.uvEnd.x=sprite.uvStart.x+width/sprite.textureWidth;sprite.widthPx=width;
     vm.sprite=&sprite;vm.scaleX=vm.scaleY=factor;
@@ -161,48 +180,76 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
     const float width=std::min(source.ctrTextWidth,sprite.widthPx-source.ctrTextStart);
     if(width<=0)return;
     const float base=CtrLayout::Single()?CtrTextSizes::SpellTop:CtrTextSizes::SpellSplit;
+    if(source.ctrTextHeight>0) {
+        sprite.heightPx=source.ctrTextHeight;
+        sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
+    }
     // Keep text.anm's zoom, 30-frame fade, vertical settling and interrupted
     // sideways exit. Cropping the canvas must preserve its authored anchors.
     const float fit=std::min(base,(Right-Left-16)/std::max(1.f,width));
-    // The scripts were authored against a 256px canvas. A wider backing
-    // texture must not change their entrance, exit, or final anchors.
-    constexpr float halfCanvas=128;
     sprite.uvStart.x+=source.ctrTextStart/sprite.textureWidth;
     sprite.uvEnd.x=sprite.uvStart.x+width/sprite.textureWidth;sprite.widthPx=width;
     vm.sprite=&sprite;
     vm.scaleX=source.scaleX*fit;vm.scaleY=source.scaleY*fit;
     vm.flags.anchor=AnmVmAnchor_TopLeft;
     const bool player=source.activeSpriteIndex==ANM_OFFSET_TEXT+6;
-    // Original canvas centers: player x192, boss x256. These constant
-    // corrections retain our final bar margins without changing the path.
-    if(player)
-        vm.pos.x=source.pos.x-halfCanvas*source.scaleX+source.ctrTextStart*source.scaleX+
-            (Left+8-(192-halfCanvas));
-    else
-        vm.pos.x=source.pos.x+halfCanvas*source.scaleX-width*vm.scaleX+
-            (Right-8-(256+halfCanvas));
-    const float restCenter=player?Bottom-4-sprite.heightPx*fit*.5f:Top+4+sprite.heightPx*fit*.5f;
-    vm.pos.y=source.pos.y+(restCenter-(player?440.f:40.f))-sprite.heightPx*vm.scaleY*.5f;
-    if(background.sprite) {
+    const bool modern=ModernBossLayout();
+    const auto& music=g_Gui.impl->songNameSprite;
+    const float musicHeight=music.sprite && !g_GameManager.demoMode?
+        (music.ctrTextHeight>0?music.ctrTextHeight:music.sprite->heightPx)*Scale()*(CtrSettings::English()?.9f:1.f):0;
+    const auto placement=CtrSpellTitleLayout::Place(player,modern,source.pos.x,source.pos.y,
+        source.scaleX,source.ctrTextStart,width,sprite.heightPx,fit,musicHeight);
+    vm.pos.x=placement.x;vm.pos.y=placement.y;vm.posOffset=ZunVec3(0,0,0);
+    if(!player)vm.color=(vm.color&0xff000000)|0xffffff;
+    if(modern) {
+        if(player)CtrSpellTitleDecoration::Underline(placement.edgeLeft,placement.edgeRight,
+            vm.pos.y+sprite.heightPx*vm.scaleY+1,true,vm.color);
+        else {
+            const float height=sprite.heightPx*fit;
+            CtrSpellTitleDecoration::BossButterflies(placement.edgeRight+(source.pos.x-256),
+                vm.pos.y+(CtrBossSpellLayout::Baseline(height)-16)*source.scaleY,source.scaleX,vm.color);
+        }
+    } else if(background.sprite) {
         auto bar=background;bar.flags.anchor=AnmVmAnchor_Center;
-        bar.pos=ZunVec3(vm.pos.x+width*vm.scaleX*.5f,vm.pos.y+sprite.heightPx*vm.scaleY*.5f,source.pos.z);
+        bar.pos=ZunVec3((placement.edgeLeft+placement.edgeRight)*.5f,vm.pos.y+sprite.heightPx*vm.scaleY*.5f,source.pos.z);
         bar.posOffset=ZunVec3(0,0,0);
         const unsigned alpha=(background.color>>24)*(vm.color>>24)/255;
         bar.color=(bar.color&0xffffffu)|(alpha<<24);
-        bar.scaleX=(width*vm.scaleX+16)/background.sprite->widthPx;
+        bar.scaleX=(placement.edgeRight-placement.edgeLeft)/background.sprite->widthPx;
         bar.scaleY=(sprite.heightPx*vm.scaleY+8)/background.sprite->heightPx;
         g_AnmManager->DrawNoRotation(&bar);
     }
     g_AnmManager->DrawNoRotation(&vm);g_AnmManager->SetCurrentSprite(nullptr);
 }
+void CtrPlayfieldText::QueueBossTimer(const ZunVec3& originalPosition,int seconds) {
+    if(CtrBossSpellHud::DrawTimer(seconds,g_AsciiManager.color))return;
+    auto position=originalPosition;
+    const auto savedScale=g_AsciiManager.scale;
+    if(ModernBossLayout()) {
+        const float size=Scale();
+        g_AsciiManager.scale=ZunVec2(size,size);
+        position.x=224.f-(2*14+2)*size*.5f;
+        position.y=40.f;
+        if(g_Gui.impl && g_Gui.impl->enemySpellcardName.flags.isVisible) {
+            const float titleScale=CtrLayout::Single()?CtrTextSizes::SpellTop:CtrTextSizes::SpellSplit;
+            position.y=std::max(position.y,16.f+g_Gui.impl->enemySpellcardName.ctrTextHeight*titleScale+4.f);
+        }
+    }
+    g_AsciiManager.AddFormatText(&position,"%.2d",seconds);
+    g_AsciiManager.scale=savedScale;
+}
 void CtrPlayfieldText::DrawDialogue(const AnmVm* lines) {
     float widest=1;
-    for(int i=0;i<2;i++)if(lines[i].sprite)
+    for(int i=0;i<CtrDialogue::Capacity;i++)if(lines[i].sprite)
         widest=std::max(widest,std::min(lines[i].ctrTextWidth,lines[i].sprite->widthPx));
-    const float factor=std::min(Scale(),352.f/widest);
-    for(int i=0;i<2;i++) {
+    const float factor=CtrSettings::English()?Scale():std::min(Scale(),352.f/widest);
+    for(int i=0;i<CtrDialogue::Capacity;i++) {
         const auto& source=lines[i];if(!source.sprite || !source.flags.isVisible)continue;
         auto vm=source;auto sprite=*source.sprite;
+        if(source.ctrTextHeight>0) {
+            sprite.heightPx=source.ctrTextHeight;
+            sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
+        }
         if(source.ctrTextWidth>0) {
             sprite.widthPx=std::min(source.ctrTextWidth,sprite.widthPx);
             sprite.uvEnd.x=sprite.uvStart.x+sprite.widthPx/sprite.textureWidth;
@@ -211,7 +258,7 @@ void CtrPlayfieldText::DrawDialogue(const AnmVm* lines) {
         if(sprite.widthPx<=0)continue;
         sprite.uvEnd.x=sprite.uvStart.x+sprite.widthPx/sprite.textureWidth;
         vm.sprite=&sprite;vm.flags.anchor=AnmVmAnchor_TopLeft;
-        vm.pos=ZunVec3(Left,DialogueTop()+12+28*i,source.pos.z);vm.posOffset=ZunVec3(0,0,0);
+        vm.pos=ZunVec3(CtrSettings::English()?40.f:Left,DialogueTop()+12+28*i,source.pos.z);vm.posOffset=ZunVec3(0,0,0);
         vm.scaleX=vm.scaleY=factor;
         g_AnmManager->DrawNoRotation(&vm);g_AnmManager->SetCurrentSprite(nullptr);
     }
