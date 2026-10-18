@@ -1,6 +1,7 @@
 #pragma once
 #include <citro2d.h>
 #include <cstdio>
+#include "AssetRoot.hpp"
 namespace CtrAssets {
 struct PackedTexture {
     C3D_Tex gpu{};Tex3DS_SubTexture sub{};bool ready=false;

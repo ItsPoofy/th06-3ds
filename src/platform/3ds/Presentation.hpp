@@ -3,12 +3,14 @@
 struct MainMenu;
 namespace CtrPresentation {
 bool Initialize();
+bool RefreshMaterial();
 void Shutdown();
 void ReleaseMenuAssets();
 void BeginScene();
 void MarkScene();
 bool HasScene();
 void LoadSurface(int slot,const char* path);
+bool ReplacesSurface(int slot);
 void CaptureMenu(const MainMenu& menu);
 void TouchMenu(MainMenu& menu,int x,int y);
 unsigned LogoOpacity();

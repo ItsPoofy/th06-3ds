@@ -15,6 +15,9 @@ from prepare_assets import prepare as prepare_game
 from game_formats import message, ending
 from graphics import prepare as prepare_graphics
 from bundled_content import install as install_bundled_content
+from boss_hud import prepare as prepare_boss_hud
+from sfx_pcm import encode as encode_sfx
+from PIL import ImageFont
 
 
 def sounds(dest):
@@ -28,7 +31,7 @@ def sounds(dest):
             pcm = ((np.frombuffer(pcm, dtype=np.uint8).astype(np.int16)-128)<<8).astype('<i2').tobytes()
         elif width != 2:
             raise ValueError(f'Unsupported sound precision: {source.name}')
-        (output/(source.stem+'.pcm')).write_bytes(struct.pack('<4sIII', b'PCM3', rate, channels, frames)+pcm)
+        (output/(source.stem+'.pcm')).write_bytes(encode_sfx(pcm, rate, channels))
         (dest/'audio').mkdir(exist_ok=True)
         shutil.copy2(output/(source.stem+'.pcm'), dest/'audio'/(source.stem+'.pcm'))
 
@@ -36,13 +39,18 @@ def sounds(dest):
 def language(dest, resources):
     translated = dest/'variants/en/data'
     translated.mkdir(parents=True, exist_ok=True)
+    english_font = ImageFont.truetype(str(resources/'THBiolinum.otf'), 44)
     for patch in (resources/'translation').glob('*.jdiff'):
         name = patch.name.removesuffix('.jdiff')
         source = dest/'data'/name
         if not source.exists():
             continue
         diff = json.loads(patch.read_text(encoding='utf-8-sig'))
-        translated.joinpath(name).write_bytes((ending if name.endswith('.end') else message)(source.read_bytes(), diff))
+        if name.endswith('.end'):
+            data = ending(source.read_bytes(), diff, english_font)
+        else:
+            data = message(source.read_bytes(), diff, english_font)
+        translated.joinpath(name).write_bytes(data)
     comments = json.loads((resources/'translation/musiccmt.js').read_text(encoding='utf-8-sig'))
     names = json.loads((resources/'english-map.json').read_text(encoding='utf-8'))
     original = (dest/'data/musiccmt.txt').read_bytes().decode('cp932')
@@ -52,7 +60,8 @@ def language(dest, resources):
         paragraph = ' '.join(comments[str(index+1)][1:]).translate(str.maketrans({'’': "'", '‘': "'", '“': '"', '”': '"', '—': '-', '–': '-', '…': '...'}))
         lines = []
         for word in paragraph.split():
-            if lines and len((lines[-1]+' '+word).encode('utf-8')) <= 32:
+            if (lines and len((lines[-1]+' '+word).encode('utf-8')) <= 32
+                    and english_font.getlength(lines[-1]+' '+word)<=460):
                 lines[-1] += ' '+word
             else:
                 lines.append(word)
@@ -68,12 +77,14 @@ def font(dest, resources):
         # Complete Japanese repertoire also covers optional stage/translation packs.
         options = subset.Options(); options.recalc_timestamp = False
         worker = subset.Subsetter(options=options)
-        worker.populate(unicodes=list(range(32, 127))+list(range(0x2000, 0x3100))+list(range(0x4e00, 0xa000))+list(range(0xff00, 0xfff0)))
+        worker.populate(unicodes=list(range(32, 0x250))+list(range(0x2000, 0x3100))+list(range(0x4e00, 0xa000))+list(range(0xff00, 0xfff0)))
         worker.subset(face)
         face.save(dest/'msgothic-3ds.ttf')
     else:
         shutil.copy2(resources/'japanese-font.otf', dest/'msgothic-3ds.ttf')
     shutil.copy2(resources/'latin-font.ttf', dest/'NotoSans-Regular.ttf')
+    shutil.copy2(resources/'THBiolinum.otf', dest/'THBiolinum.otf')
+    shutil.copy2(resources/'THBiolinum-scaled.otf', dest/'THBiolinum-scaled.otf')
 
 
 def convert(source, output, resources, report):
@@ -111,6 +122,7 @@ def convert(source, output, resources, report):
             raise ValueError('Music conversion did not produce all 17 TH06 tracks. Check that the original WAV files are present.')
         report('Preparing Japanese font…')
         font(dest, resources)
+        prepare_boss_hud(dest, resources)
         (dest/'asset-version.txt').write_text('TH06-3DS assets 1\n', encoding='ascii')
         dest.rename(output)
     report('Done. Copy assets to sd:/3ds/th06/assets/.')

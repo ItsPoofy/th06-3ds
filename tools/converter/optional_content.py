@@ -11,6 +11,8 @@ from PIL import Image
 from prepare_assets import unpack, write_texture
 from game_formats import image_texture
 from bundled_content import UI_SHEETS
+from sfx_pcm import encode as encode_sfx
+from graphics import gameplay_material
 
 
 def retexture(source, assets, resources, report):
@@ -25,6 +27,9 @@ def retexture(source, assets, resources, report):
     for archive in archives:
         graphics.update(unpack(archive))
     variants = assets/'variants'
+    material = variants/'retexture/ui/gameplay-material.bin'
+    material.parent.mkdir(parents=True, exist_ok=True)
+    write_texture(material, gameplay_material(image_texture(graphics, 'front.anm')))
     for name in graphics:
         if not name.endswith('.anm'):
             continue
@@ -62,7 +67,7 @@ def retexture(source, assets, resources, report):
                 pcm = ((np.frombuffer(pcm, dtype=np.uint8).astype(np.int16)-128)<<8).astype('<i2').tobytes()
             elif width != 2:
                 raise ValueError(f'Unsupported SFX precision: {pack}/{name}')
-            (output/(Path(name).stem+'.pcm')).write_bytes(struct.pack('<4sIII', b'PCM3', rate, channels, frames)+pcm)
+            (output/(Path(name).stem+'.pcm')).write_bytes(encode_sfx(pcm, rate, channels))
 
 
 def th20(source, assets, resources, report):
@@ -80,5 +85,8 @@ def th20(source, assets, resources, report):
         run([str(resources/'thdat.exe'), '-x20', str(archive), 'effect.anm', 'front.anm'])
         run([str(resources/'thanm.exe'), '-x20', str(root/'effect.anm'), 'effect/eff_sloweffect.png'])
         run([str(resources/'thanm.exe'), '-x20', str(root/'front.anm'), 'front/lifebar.png'])
-        write_texture(Path(assets)/'ui/focus-th20.bin', Image.open(root/'effect/eff_sloweffect.png').crop((0, 0, 64, 64)))
+        ring = Image.open(root/'effect/eff_sloweffect.png').convert('RGBA').crop((0, 0, 64, 64))
+        ring.paste((0, 0, 0, 0), (25, 25, 39, 39))
+        write_texture(Path(assets)/'ui/focus-th20.bin', ring)
+        shutil.copy2(resources/'bundled-assets/ui/focus-dot.bin', Path(assets)/'ui/focus-dot.bin')
         write_texture(Path(assets)/'textures/boss-lifebar.bin', Image.open(root/'front/lifebar.png'))

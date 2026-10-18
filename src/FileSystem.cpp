@@ -27,7 +27,7 @@ FILE *FileSystem::FopenUTF8(const char *filepath, const char *mode)
     FILE* file=std::fopen(filepath, mode);
 #ifdef __3DS__
     if(!file && mode[0]=='r' && !std::strchr(filepath, ':')) {
-        char rompath[512];std::snprintf(rompath,sizeof(rompath),"sdmc:/3ds/th06/assets/%s",filepath);
+        char rompath[512];std::snprintf(rompath,sizeof(rompath),TH06_ASSET_ROOT "%s",filepath);
         file=std::fopen(rompath,mode);
     }
 #endif

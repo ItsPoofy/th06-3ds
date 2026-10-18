@@ -316,8 +316,11 @@
 #define TH_FALLBACK_FONT_FILENAME "NotoSansJP-Regular.ttf"
 
 #ifdef __3DS__
+#include "platform/3ds/AssetRoot.hpp"
 #undef TH_PRIMARY_FONT_FILENAME
 #undef TH_FALLBACK_FONT_FILENAME
-#define TH_PRIMARY_FONT_FILENAME "sdmc:/3ds/th06/assets/msgothic-3ds.ttf"
-#define TH_FALLBACK_FONT_FILENAME "sdmc:/3ds/th06/assets/NotoSans-Regular.ttf"
+#define TH_PRIMARY_FONT_FILENAME TH06_ASSET_ROOT "msgothic-3ds.ttf"
+#define TH_ENGLISH_FONT_FILENAME TH06_ASSET_ROOT "THBiolinum.otf"
+#define TH_ENGLISH_SPELL_FONT_FILENAME TH06_ASSET_ROOT "THBiolinum-scaled.otf"
+#define TH_FALLBACK_FONT_FILENAME TH06_ASSET_ROOT "NotoSans-Regular.ttf"
 #endif

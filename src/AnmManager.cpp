@@ -10,6 +10,7 @@
 #ifdef __3DS__
 #include "platform/3ds/CtrRenderer.hpp"
 #include "platform/3ds/Presentation.hpp"
+#include "platform/3ds/Settings.hpp"
 #endif
 
 #include <cstdio>
@@ -486,7 +487,10 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
 
 #ifdef __3DS__
     const bool playfieldTextCanvas=*anmName=='@' && std::strcmp(path,"data/text.anm")==0;
-    if(playfieldTextCanvas)anm->width=512;
+    const bool musicTextCanvas=*anmName=='@' &&
+        (std::strcmp(path,"data/music01.anm")==0 || std::strcmp(path,"data/music02.anm")==0);
+    if(playfieldTextCanvas) {anm->width=512;anm->height=1024;}
+    else if(musicTextCanvas) {anm->width=512;anm->height=512;}
 #endif
 
     if (anm->format == TEX_FMT_UNKNOWN)
@@ -541,16 +545,24 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
         loadedSprite.startPixelInclusive.y = rawSprite->offset.y;
         loadedSprite.endPixelInclusive.x = rawSprite->offset.x + rawSprite->size.x;
 #ifdef __3DS__
-        if(playfieldTextCanvas)loadedSprite.endPixelInclusive.x=anm->width;
+        if(playfieldTextCanvas || musicTextCanvas)loadedSprite.endPixelInclusive.x=anm->width;
 #endif
         loadedSprite.endPixelInclusive.y = rawSprite->offset.y + rawSprite->size.y;
 #ifdef __3DS__
-        if(playfieldTextCanvas && rawSprite->id==0) {
-            // Stage captions need two full-size rows. The upper half belongs
-            // to gameplay dialogue, music and spells; the lower half is used
-            // by endings/music-room descriptions in their separate scenes.
-            loadedSprite.startPixelInclusive.y=128;
-            loadedSprite.endPixelInclusive.y=164;
+        if(playfieldTextCanvas) {
+            const int id=rawSprite->id;
+            int row=0,height=32;
+            if(id==0) {row=0;height=64;}
+            else if(id<=4) {row=64+(id-1)*24;height=24;}
+            else if(id==5) {row=160;height=64;}
+            else if(id<=7) {row=224+(id-6)*96;height=96;}
+            else if(id<=12) {row=416+(id-8)*48;height=48;}
+            else {row=656+(id-13)*32;height=32;}
+            loadedSprite.startPixelInclusive.y=row;
+            loadedSprite.endPixelInclusive.y=row+height;
+        } else if(musicTextCanvas) {
+            loadedSprite.startPixelInclusive.y=rawSprite->id*32;
+            loadedSprite.endPixelInclusive.y=loadedSprite.startPixelInclusive.y+32;
         }
 #endif
         loadedSprite.textureWidth = (float)anm->width;
@@ -827,6 +839,23 @@ void AnmManager::UpdateDirtyStates()
     }
 }
 
+#ifdef __3DS__
+namespace {
+bool NeedsTextHeight(const AnmVm* vm) {
+    return vm->sprite && vm->ctrTextHeight>0 && vm->sprite->heightPx!=vm->ctrTextHeight;
+}
+ZunResult DrawSizedText(AnmManager* manager,const AnmVm* source,ZunResult (AnmManager::*draw)(const AnmVm*)) {
+    auto vm=*source;auto sprite=*source->sprite;
+    sprite.heightPx=source->ctrTextHeight;
+    sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
+    vm.sprite=&sprite;
+    const auto result=(manager->*draw)(&vm);
+    manager->SetCurrentSprite(nullptr);
+    return result;
+}
+}
+#endif
+
 ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
 {
     float triangleX1, triangleX2, triangleY1, triangleY2;
@@ -1015,6 +1044,9 @@ ZunResult AnmManager::AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices)
 
 ZunResult AnmManager::DrawNoRotation(const AnmVm *vm)
 {
+#ifdef __3DS__
+    if(NeedsTextHeight(vm))return DrawSizedText(this,vm,&AnmManager::DrawNoRotation);
+#endif
     float fVar2;
     float fVar3;
 
@@ -1067,6 +1099,9 @@ void AnmManager::TranslateRotation(VertexTex1Xyzrhw *param_1, f32 x, f32 y, f32 
 
 ZunResult AnmManager::Draw(const AnmVm *vm)
 {
+#ifdef __3DS__
+    if(NeedsTextHeight(vm))return DrawSizedText(this,vm,&AnmManager::Draw);
+#endif
     f32 zSine;
     f32 zCosine;
     f32 spriteXCenter;
@@ -1171,6 +1206,9 @@ ZunResult AnmManager::DrawFacingCamera(const AnmVm *vm)
 
 ZunResult AnmManager::Draw3(const AnmVm *vm)
 {
+#ifdef __3DS__
+    if(NeedsTextHeight(vm))return DrawSizedText(this,vm,&AnmManager::Draw3);
+#endif
     ZunMatrix worldTransformMatrix;
     ZunMatrix rotationMatrix;
     ZunMatrix textureMatrix;
@@ -1309,6 +1347,9 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
 
 ZunResult AnmManager::Draw2(const AnmVm *vm)
 {
+#ifdef __3DS__
+    if(NeedsTextHeight(vm))return DrawSizedText(this,vm,&AnmManager::Draw2);
+#endif
     ZunMatrix worldTransformMatrix;
     ZunMatrix unusedMatrix;
     ZunMatrix textureMatrix;
@@ -1766,7 +1807,7 @@ stop:
 #undef AnmU32Arg
 #undef AnmI16Arg
 
-void AnmManager::DrawTextToSprite(u32 textureDstIdx, i32 xPos, i32 yPos, i32 spriteWidth, i32 spriteHeight,
+int AnmManager::DrawTextToSprite(u32 textureDstIdx, i32 xPos, i32 yPos, i32 spriteWidth, i32 spriteHeight,
                                   i32 fontWidth, i32 fontHeight, ZunColor textColor, ZunColor shadowColor,
                                   const char *strToPrint)
 {
@@ -1779,10 +1820,11 @@ void AnmManager::DrawTextToSprite(u32 textureDstIdx, i32 xPos, i32 yPos, i32 spr
         fontHeight = 15;
     }
 
+    int height=0;
     TextHelper::RenderTextToTexture(xPos, yPos, spriteWidth, spriteHeight, fontWidth, fontHeight, textColor,
-                                    shadowColor, strToPrint, &this->textures[textureDstIdx]);
+                                    shadowColor, strToPrint, &this->textures[textureDstIdx],false,&height);
 
-    return;
+    return height;
 }
 
 void AnmManager::DrawVmTextFmt(AnmVm *vm, ZunColor textColor, ZunColor shadowColor, const char *fmt, ...)
@@ -1795,12 +1837,13 @@ void AnmManager::DrawVmTextFmt(AnmVm *vm, ZunColor textColor, ZunColor shadowCol
     va_start(argptr, fmt);
     vsnprintf(buffer,sizeof(buffer),fmt,argptr);
     va_end(argptr);
-    this->DrawTextToSprite(vm->sprite->sourceFileIndex, vm->sprite->startPixelInclusive.x,
+    const int renderedHeight=this->DrawTextToSprite(vm->sprite->sourceFileIndex, vm->sprite->startPixelInclusive.x,
                            vm->sprite->startPixelInclusive.y, vm->sprite->textureWidth, vm->sprite->textureHeight,
                            fontWidth, vm->fontHeight, textColor, shadowColor, buffer);
 #ifdef __3DS__
     vm->ctrTextStart=0;
     vm->ctrTextWidth=TextHelper::Measure(buffer,fontWidth<=0?15:fontWidth);
+    vm->ctrTextHeight=renderedHeight;
 #endif
     vm->flags.isVisible = true;
     return;
@@ -1828,12 +1871,13 @@ void AnmManager::DrawStringFormat(AnmVm *vm, ZunColor textColor, ZunColor shadow
     secondPartStartX =
         vm->sprite->startPixelInclusive.x + vm->sprite->textureWidth - ((f32)strlen(buf) * (f32)(fontWidth + 1) / 2.0f);
 #endif
-    this->DrawTextToSprite(vm->sprite->sourceFileIndex, secondPartStartX, vm->sprite->startPixelInclusive.y,
+    const int renderedHeight=this->DrawTextToSprite(vm->sprite->sourceFileIndex, secondPartStartX, vm->sprite->startPixelInclusive.y,
                            vm->sprite->textureWidth, vm->sprite->textureHeight, fontWidth, vm->fontHeight, textColor,
                            shadowColor, buf);
 #ifdef __3DS__
     vm->ctrTextStart=std::max(0.f,float(secondPartStartX-vm->sprite->startPixelInclusive.x));
     vm->ctrTextWidth=TextHelper::Measure(buf,fontWidth);
+    vm->ctrTextHeight=renderedHeight;
 #endif
     vm->flags.isVisible = true;
     return;
@@ -1861,12 +1905,13 @@ void AnmManager::DrawStringFormat2(AnmVm *vm, ZunColor textColor, ZunColor shado
     secondPartStartX = vm->sprite->startPixelInclusive.x + vm->sprite->textureWidth / 2.0f -
                        ((f32)strlen(buf) * (f32)(fontWidth + 1) / 4.0f);
 #endif
-    this->DrawTextToSprite(vm->sprite->sourceFileIndex, secondPartStartX, vm->sprite->startPixelInclusive.y,
+    const int renderedHeight=this->DrawTextToSprite(vm->sprite->sourceFileIndex, secondPartStartX, vm->sprite->startPixelInclusive.y,
                            vm->sprite->textureWidth, vm->sprite->textureHeight, fontWidth, vm->fontHeight, textColor,
                            shadowColor, buf);
 #ifdef __3DS__
     vm->ctrTextStart=std::max(0.f,float(secondPartStartX-vm->sprite->startPixelInclusive.x));
     vm->ctrTextWidth=TextHelper::Measure(buf,fontWidth);
+    vm->ctrTextHeight=renderedHeight;
 #endif
     vm->flags.isVisible = true;
     return;
@@ -1939,6 +1984,12 @@ void AnmManager::CopySurfaceRectToBackBuffer(i32 surfaceIdx, i32 dstX, i32 dstY,
 
 #ifdef __3DS__
     CtrPresentation::MarkScene();
+    if(CtrPresentation::ReplacesSurface(surfaceIdx) && dstX==0 && dstY==0 &&
+       rectLeft==0 && rectTop==0 && rectWidth==srcSurface->w && rectHeight==srcSurface->h) {
+        g_GfxBackend->SetClearColor(0,0,0,0);
+        g_GfxBackend->Clear(CLEAR_COLOR_BUFFER);
+        return;
+    }
 #endif
     ApplySurfaceToColorBuffer(srcSurface, (SDL_Rect){.x = rectLeft, .y = rectTop, .w = rectWidth, .h = rectHeight},
                               (SDL_Rect){.x = dstX, .y = dstY, .w = rectWidth, .h = rectHeight});

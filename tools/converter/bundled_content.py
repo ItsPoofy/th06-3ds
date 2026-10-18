@@ -3,7 +3,7 @@ import shutil
 
 UI_SHEETS = ('ascii', 'asciis', 'title01', 'title01s', 'title02', 'title03',
              'title04', 'title04s', 'select01', 'select02', 'select03', 'select04',
-             'select05', 'result00', 'result02', 'result03', 'replay00', 'music00',
+             'select05', 'result00', 'result01', 'result02', 'result03', 'replay00', 'music00',
              'staff01', 'staff02', 'staff03', 'front', 'slpl00a', 'slpl00b', 'slpl01a', 'slpl01b')
 
 

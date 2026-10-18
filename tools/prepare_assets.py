@@ -4,8 +4,7 @@ import io
 import struct
 import numpy as np
 from PIL import Image
-from stage_backgrounds import complete_surface
-from score_digits import regular_score_digits
+from stage_surfaces import prepare as prepare_surface
 
 
 class Bits:
@@ -97,7 +96,7 @@ def prepare(source, root=None):
     textures.mkdir(exist_ok=True)
     images = {}
     for name, data in assets.items():
-        (raw / name).write_bytes(data)
+        (raw / name).write_bytes(prepare_surface(name, data))
         if name.lower().endswith(('.bmp', '.png', '.jpg')):
             images[name] = Image.open(io.BytesIO(data)).convert('RGBA')
             write_texture(textures / (name + '.bin'), images[name])
@@ -133,7 +132,7 @@ def prepare(source, root=None):
             elif fmt == 5:
                 alpha = (alpha >> 4) * 17
             a[:, :, 3] = alpha
-        write_texture(textures / (name + '.bin'), regular_score_digits(name, complete_surface(name, Image.fromarray(a))))
+        write_texture(textures / (name + '.bin'), Image.fromarray(a))
         count += 1
     print(f'Prepared {len(assets)} files, {len(images)} surfaces, {count} animation textures')
     for name, data in assets.items():

@@ -1,4 +1,4 @@
-"""Use the regular numeral glyphs for the small floating score atlas."""
+"""Use regular numerals in the English floating score atlas."""
 from PIL import Image
 
 

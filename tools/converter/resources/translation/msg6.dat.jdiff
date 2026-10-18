@@ -3,7 +3,7 @@
         "60_0": {
             "lines": [
                 "I've got to at least make you waste a bomb",
-                "before the mistress gets mad at me..."
+                "before the mistress gets mad at me!"
             ]
         },
         "150_0": {
@@ -156,8 +156,7 @@
         },
         "273_0": {
             "lines": [
-                "Looks like it's going to be a fun night.",
-                "Looks like it's going to be a long night."
+                "Looks like it's going to be a fun night.\nLooks like it's going to be a long night."
             ]
         }
     },
