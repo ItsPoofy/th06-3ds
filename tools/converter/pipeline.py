@@ -102,8 +102,10 @@ def convert(source, output, resources, report):
         report('Extracting game data and preparing textures…')
         prepare_game(source, dest)
         required = ('title01.anm', 'stage1.std', 'stage6.std', 'msg1.dat', 'front.anm')
-        if any(not (dest/'data'/name).is_file() for name in required):
-            raise ValueError('This is not a complete TH06 installation. Select the folder containing all original DAT archives.')
+        missing = [name for name in required if not (dest/'data'/name).is_file()]
+        if missing:
+            raise ValueError('This is not a complete TH06 installation. Select the folder containing '
+                             'all original DAT archives. Missing game resources: '+', '.join(missing))
         report('Building backgrounds and menu graphics…')
         prepare_graphics(root, resources)
         report('Preparing English dialogue and endings…')

@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pipeline import convert
+from diagnostics import error_message, write_error_log
 
 
 def main():
@@ -35,11 +36,19 @@ def main():
             buttons.pack(padx=16, pady=(0, 16))
 
     def worker():
+        stage = 'Checking the selected game folder'
+
+        def report(text):
+            nonlocal stage
+            stage = text
+            events.put(('status', text))
+
         try:
-            convert(source, output, resources, lambda text: events.put(('status', text)))
+            convert(source, output, resources, report)
             events.put(('done', str(output)))
         except Exception as error:
-            events.put(('error', str(error)))
+            log_path = write_error_log(error, stage, source, output, executable.parent)
+            events.put(('error', error_message(error, stage, log_path)))
 
     def poll():
         while not events.empty():
@@ -52,8 +61,9 @@ def main():
                     status.set(f'Assets ready: {output}\n\nRetexture graphics, sound sets, and TH20 sprites are included.\nCopy assets to sd:/3ds/th06/assets/.')
                     ready()
                 else:
+                    status.set(text)
+                    ready()
                     messagebox.showerror('Conversion failed', text, parent=window)
-                    window.destroy(); return
         window.after(100, poll)
 
     threading.Thread(target=worker, daemon=True).start()

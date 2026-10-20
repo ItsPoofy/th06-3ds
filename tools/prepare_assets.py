@@ -6,67 +6,7 @@ import numpy as np
 from PIL import Image
 from stage_surfaces import prepare as prepare_surface
 
-
-class Bits:
-    def __init__(self, data, offset=0):
-        self.data, self.pos = data, offset * 8
-
-    def read(self, count):
-        value = 0
-        for _ in range(count):
-            value = (value << 1) | ((self.data[self.pos // 8] >> (7 - self.pos % 8)) & 1)
-            self.pos += 1
-        return value
-
-    def integer(self):
-        return self.read((self.read(2) + 1) * 8)
-
-
-def unpack(path):
-    data = path.read_bytes()
-    assert data[:4] == b'PBG3'
-    bits = Bits(data, 4)
-    count, table = bits.integer(), bits.integer()
-    bits = Bits(data, table)
-    entries = []
-    for _ in range(count):
-        fields = [bits.integer() for _ in range(5)]
-        name = bytearray()
-        while (byte := bits.read(8)):
-            name.append(byte)
-        entries.append((name.decode('ascii'), fields))
-    result = {}
-    for index, (name, (_, _, checksum, offset, size)) in enumerate(entries):
-        bits = Bits(data, offset)
-        window = bytearray(8192)
-        head, output = 1, bytearray()
-        # Some replacement archives end at the declared size without the
-        # original encoder's zero-distance terminator.
-        while len(output) < size:
-            if bits.read(1):
-                values = [bits.read(8)]
-            else:
-                start = bits.read(13)
-                if not start:
-                    break
-                length = bits.read(4) + 3
-                values = None
-            if values is not None:
-                for value in values:
-                    output.append(value)
-                    window[head] = value
-                    head = (head + 1) & 8191
-            else:
-                for i in range(length):
-                    value = window[(start + i) & 8191]
-                    output.append(value)
-                    window[head] = value
-                    head = (head + 1) & 8191
-        assert len(output) == size, name
-        end = entries[index + 1][1][3] if index + 1 < len(entries) else table
-        assert sum(data[offset:end]) & 0xffffffff == checksum, name
-        result[name] = bytes(output)
-    return result
+from pbg3_archive import archives, unpack
 
 
 def write_texture(path, image):
@@ -87,10 +27,10 @@ def prepare(source, root=None):
     root = root or source
     root.mkdir(parents=True, exist_ok=True)
     assets = {}
-    for archive in sorted(p for p in source.iterdir() if p.suffix.lower() == '.dat'):
+    for archive in archives(source):
         assets.update(unpack(archive))
     if not assets:
-        raise ValueError('The selected folder contains no TH06 PBG3 archives.')
+        raise ValueError('No TH06 PBG3 game archives were found. Select the original game folder containing the DAT archives and bgm folder; save and configuration DAT files are ignored.')
     raw, textures = root / 'data', root / 'textures'
     raw.mkdir(exist_ok=True)
     textures.mkdir(exist_ok=True)
