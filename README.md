@@ -54,7 +54,7 @@ Then install your chosen build:
 - **3DSX:** Copy `th06.3dsx` to `/3ds/th06/`, then launch **Touhou 6** from Homebrew Launcher.
 - **CIA:** Copy `th06.cia` to your SD card, install it with FBI, then launch **Touhou 6** from the HOME Menu.
 
-Both builds need `/3ds/th06/assets/`. Installing the CIA does not copy the assets.
+Both builds need `/3ds/th06/assets/`.
 
 ```text
 SD card/
@@ -70,8 +70,6 @@ SD card/
             └── variants/
 ```
 
-The converter requires WAV music; OGG-only installations aren't supported.
-
 ## Controls
 
 | Input | Default action |
@@ -83,7 +81,7 @@ The converter requires WAV music; OGG-only installations aren't supported.
 | X | Skip dialogue |
 | START | Pause |
 
-Change bindings in **Options > Controls > Key Config**. Shooting and focus can also be set to toggle.
+Change bindings in **Options > Controls > Key Config**.
 
 ## Bugs
 
