@@ -4,7 +4,7 @@ A Nintendo 3DS port of **Touhou Koumakyou ~ the Embodiment of Scarlet Devil** wi
 
 Compatible with both **Old and New Nintendo 3DS and 2DS systems**.
 
-**This port is a work in progress.** Some screens and features aren't finished yet, and bugs remain.
+**This port is a work in progress.** 
 
 You'll need the original PC game files. The included Windows converter prepares them for the 3DS.
 
