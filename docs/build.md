@@ -21,7 +21,7 @@ For a native Windows SDK layout with `.exe` tools, use `cmake/Windows3DS.cmake` 
 
 ## Build the CIA
 
-Install [makerom](https://github.com/3DSGuy/Project_CTR/releases) and [bannertool](https://github.com/Epicpkmn11/bannertool/releases). Build the game first, then run:
+Install [makerom v0.18.4](https://github.com/3DSGuy/Project_CTR/releases/tag/makerom-v0.18.4) and [bannertool](https://github.com/Epicpkmn11/bannertool/releases). Build the game first, then run:
 
 ```sh
 python tools/package_cia.py build --makerom /path/to/makerom --bannertool /path/to/bannertool
