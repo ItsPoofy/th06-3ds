@@ -263,7 +263,7 @@ void DrawPanelInternal(C3D_RenderTarget* bottom) {
             C2D_SetTintMode(C2D_TintSolid);return;
         }
         for(int i=0;i<rowCount;i++) Label(rows[i].label,24+rows[i].slideX,14+i*26+rows[i].slideY,rows[i].selected,rows[i].disabled,false,rows[i].opacity);
-        const auto* version=Find("3DS Version 1.4");
+        const auto* version=Find("3DS Version 1.0.4");
         unsigned opacity=0;
         for(int i=0;i<rowCount;i++)opacity=std::max(opacity,rows[i].opacity);
         if(version)Label(version->text,315-version->w,216,false,false,false,opacity);
