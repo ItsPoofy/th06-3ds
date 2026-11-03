@@ -40,3 +40,11 @@ bool CtrKeyboard::InputName(char (&name)[9],const char* hint) {
     std::memset(name,' ',8);std::memcpy(name,text,std::strlen(text));name[8]=0;
     return true;
 }
+void CtrKeyboard::ShowError(const char* message) {
+    auto* renderer=static_cast<CtrRenderer*>(g_GfxBackend);
+    renderer->SuspendForApplet();
+    errorConf dialog;
+    errorInit(&dialog,ERROR_TEXT,CFG_LANGUAGE_EN);
+    errorText(&dialog,message);errorDisp(&dialog);
+    renderer->ResumeFromApplet();CtrGameLoop::ResetClock();
+}

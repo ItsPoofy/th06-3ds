@@ -549,6 +549,7 @@ ZunResult Stage::RenderObjects(i32 zLevel)
     worldMatrix.Identity();
 #ifdef __3DS__
     const auto clipMatrix=g_Supervisor.projectionMatrix*g_Supervisor.viewMatrix;
+    const CtrStageVisibility::Frustum frustum(clipMatrix);
     auto* renderer=static_cast<CtrRenderer*>(g_GfxBackend);
     float depthBias=0;
     renderer->SetStageDepthBias(0);
@@ -563,7 +564,7 @@ ZunResult Stage::RenderObjects(i32 zLevel)
             unk8 = 0;
 
 #ifdef __3DS__
-            if(!CtrStageVisibility::Visible(clipMatrix,
+            if(!frustum.Visible(
                 ZunVec3(obj->position.x+instance->position.x-this->position.x,
                         -(obj->position.y+instance->position.y-this->position.y),
                         obj->position.z+instance->position.z-this->position.z),ZunVec3(obj->size.x,obj->size.y,obj->size.z)))goto skip;

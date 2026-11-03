@@ -7,6 +7,7 @@ std::atomic_int bgm{100},sfx{100};
 CtrSettings::ScreenMode mode=CtrSettings::ScreenMode::TopOnly;
 bool toggles[]={true,false,false,true,false,true,true};
 bool replayCollection=false,replayAlways=false;
+int replayOptions=-1;
 unsigned char content[]={1,0,0,0};
 }
 void CtrSettings::Load() {
@@ -40,9 +41,9 @@ void CtrSettings::Save() {
     }
 }
 void CtrSettings::Reset() {mode=ScreenMode::TopOnly;bgm=100;sfx=100;toggles[0]=true;toggles[1]=toggles[2]=false;toggles[3]=true;toggles[4]=false;toggles[5]=toggles[6]=true;content[0]=1;content[1]=content[2]=content[3]=0;}
-bool CtrSettings::English() {return content[0]!=0;}
-bool CtrSettings::Retexture() {return content[1]!=0;}
-bool CtrSettings::NewSprites() {return content[3]!=0;}
+bool CtrSettings::English() {return replayOptions>=0?(replayOptions&2)!=0:content[0]!=0;}
+bool CtrSettings::Retexture() {return replayOptions>=0?(replayOptions&4)!=0:content[1]!=0;}
+bool CtrSettings::NewSprites() {return replayOptions>=0?(replayOptions&8)!=0:content[3]!=0;}
 int CtrSettings::SoundPack() {return content[2];}
 const char* CtrSettings::SoundPackName() {static const char* names[]={"Original","PCB","IN","SA"};return names[content[2]];}
 void CtrSettings::ChangeContent(Content setting,int direction) {auto& value=content[static_cast<int>(setting)];const int count=setting==Content::Sound?4:2;value=(value+direction+count)%count;}
@@ -56,5 +57,7 @@ void CtrSettings::ChangeVolume(bool music,int direction) {
 bool CtrSettings::Enabled(Toggle setting) {return toggles[static_cast<int>(setting)];}
 void CtrSettings::ChangeToggle(Toggle setting) {auto& value=toggles[static_cast<int>(setting)];value=!value;}
 bool CtrSettings::CollectAtTop(int power,float y) {return y<128.f && (power>=128 || (replayCollection?replayAlways:toggles[4]));}
-void CtrSettings::ReplayCollection(bool always) {replayCollection=true;replayAlways=always;}
-void CtrSettings::EndReplayCollection() {replayCollection=false;}
+void CtrSettings::ReplayCollection(bool always) {replayCollection=true;replayAlways=always;replayOptions=-1;}
+void CtrSettings::EndReplayCollection() {replayCollection=false;replayOptions=-1;}
+void CtrSettings::ReplayOptions(unsigned flags) {ReplayCollection((flags&1)!=0);replayOptions=flags;}
+bool CtrSettings::ReplayHasOptions() {return replayOptions>=0;}

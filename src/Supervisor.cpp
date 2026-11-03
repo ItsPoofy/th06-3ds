@@ -110,6 +110,10 @@ ChainCallbackResult Supervisor::OnUpdate(Supervisor *s)
                 {
                     return CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS;
                 }
+                if (s->curState == SUPERVISOR_STATE_MAINMENU)
+                {
+                    goto RETURN_TO_MENU_FROM_GAME;
+                }
                 break;
             case SUPERVISOR_STATE_EXITERROR:
                 return CHAIN_CALLBACK_RESULT_EXIT_GAME_ERROR;

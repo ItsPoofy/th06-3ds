@@ -6,7 +6,7 @@ Compatible with both **Old and New Nintendo 3DS and 2DS systems**.
 
 **This port is a work in progress.** 
 
-You'll need the original PC game files. The included Windows converter prepares them for the 3DS.
+You'll need the original PC game files or the Steam Classic version. The included Windows converter prepares them for the 3DS.
 
 ## Features
 
@@ -36,7 +36,7 @@ Screenshots taken in Azahar.
 ## Requirements
 
 - A homebrew-enabled 3DS or 2DS.
-- The original Japanese TH06 game files, including the DAT archives and WAV music in `bgm`.
+- The original Japanese TH06 game files or [Touhou Koumakyou: Classic - the Embodiment of Scarlet Devil](https://store.steampowered.com/app/4924840/), including the DAT archives and WAV music in `bgm`.
 - A Windows 10 or 11 PC to run the converter.
 - DSP firmware dumped on your console for audio. See [3DS Hacks Guide](https://3ds.hacks.guide/finalizing-setup.html).
 
@@ -45,7 +45,7 @@ Screenshots taken in Azahar.
 Download `TH06-Asset-Converter.exe` and either `th06.3dsx` or `th06.cia` from the [latest release](https://github.com/ItsPoofy/th06-3ds/releases/latest).
 
 1. Put the converter in a writable folder on your PC, then run it.
-2. Select your TH06 game folder—the folder containing the DAT archives and `bgm`.
+2. Select your TH06 game folder—the folder containing the DAT archives and `bgm` (`th06c` for Steam Classic).
 3. Wait for **Assets ready**. The converter creates an `assets` folder beside the executable. Music conversion can take a few minutes.
 4. Copy that `assets` folder to `/3ds/th06/` on your SD card.
 

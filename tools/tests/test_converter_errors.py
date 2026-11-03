@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(TOOLS), str(TOOLS/'converter')]
-from pbg3_archive import archives, unpack
+from game_archives import archives, unpack
 from prepare_assets import prepare
 from diagnostics import error_message, write_error_log
 from pipeline import convert
@@ -61,7 +61,7 @@ class ConverterErrors(unittest.TestCase):
             source = Path(temporary)/'kouma'
             source.mkdir()
             (source/'score.dat').write_bytes(b'TH6K')
-            with self.assertRaisesRegex(ValueError, 'No TH06 PBG3 game archives'):
+            with self.assertRaisesRegex(ValueError, 'No TH06 game archives'):
                 prepare(source, Path(temporary)/'converted')
 
     def test_damaged_archive_identifies_its_filename(self):

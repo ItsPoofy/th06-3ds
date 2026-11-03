@@ -3,6 +3,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <vector>
+#include <algorithm>
+#include "ReplayStorage.hpp"
 
 #include "Controller.hpp"
 #include "FileSystem.hpp"
@@ -20,13 +23,13 @@ ReplayManager *g_ReplayManager;
 
 ZunResult ReplayManager::ValidateReplayData(const ReplayHeader *data, i32 fileSize)
 {
-    u8 *checksumCursor;
+    const u8 *checksumCursor;
     u32 checksum;
     u8 *obfuscateCursor;
     u8 obfOffset;
     i32 idx;
 
-    if (data == NULL)
+    if (data == NULL || fileSize<i32(sizeof(ReplayHeader)))
     {
         return ZUN_ERROR;
     }
@@ -38,7 +41,7 @@ ZunResult ReplayManager::ValidateReplayData(const ReplayHeader *data, i32 fileSi
     }
 
     /* Deobfuscate the replay decryptedData */
-    obfuscateCursor = (u8 *)&data->rngValue3;
+    obfuscateCursor = reinterpret_cast<u8*>(const_cast<ReplayHeader*>(data))+offsetof(ReplayHeader,rngValue3);
     obfOffset = data->key;
     for (idx = 0; idx < fileSize - (i32)offsetof(ReplayHeader, rngValue3); idx += 1, obfuscateCursor += 1)
     {
@@ -48,7 +51,7 @@ ZunResult ReplayManager::ValidateReplayData(const ReplayHeader *data, i32 fileSi
 
     /* Calculate the checksum */
     /* (0x3f000318 + key + sum(c for c in decryptedData)) % (2 ** 32) */
-    checksumCursor = (u8 *)&data->key;
+    checksumCursor = reinterpret_cast<const u8*>(data)+offsetof(ReplayHeader,key);
     checksum = 0x3f000318;
     for (idx = 0; idx < fileSize - (i32)offsetof(ReplayHeader, key); idx += 1, checksumCursor += 1)
     {
@@ -63,6 +66,32 @@ ZunResult ReplayManager::ValidateReplayData(const ReplayHeader *data, i32 fileSi
     if (data->version != GAME_VERSION)
     {
         return ZUN_ERROR;
+    }
+    if(data->shottypeChara>=4 || data->difficulty>4)return ZUN_ERROR;
+    u32 previous=sizeof(ReplayHeader);
+    for(int stage=0;stage<7;stage++) {
+        const u32 start=data->stageReplayDataOffsets[stage];
+        if(!start)continue;
+        u32 end=fileSize;
+        for(int next=stage+1;next<7;next++)if(data->stageReplayDataOffsets[next]) {
+            end=data->stageReplayDataOffsets[next];break;
+        }
+        constexpr auto prefix=offsetof(StageReplayData,replayInputs);
+        if(start<previous || start%4 || end>u32(fileSize) || end<start || end-start<prefix+16 ||
+           (end-start-prefix)%sizeof(ReplayDataInput)!=0)return ZUN_ERROR;
+        const auto count=(end-start-prefix)/sizeof(ReplayDataInput);
+        if(count>53998)return ZUN_ERROR;
+        const auto* inputs=reinterpret_cast<const StageReplayData*>(reinterpret_cast<const u8*>(data)+start)->replayInputs;
+        bool terminated=false;
+        for(size_t i=0;i<count;i++) {
+            if(inputs[i].frameNum<0 || (i && inputs[i].frameNum<inputs[i-1].frameNum))return ZUN_ERROR;
+            // Playback stops consuming events at the first end marker. Native
+            // files (including demo00.rpy) can retain an older stop sequence
+            // after it; those unused records are not part of the input stream.
+            if(inputs[i].frameNum==9999999) {terminated=i>0;break;}
+        }
+        if(!terminated)return ZUN_ERROR;
+        previous=end;
     }
 
     return ZUN_SUCCESS;
@@ -94,6 +123,9 @@ ZunResult ReplayManager::RegisterChain(i32 isDemo, const char *replayFile)
             replayMgr->calcChain->arg = replayMgr;
             if (g_Chain.AddToCalcChain(replayMgr->calcChain, TH_CHAIN_PRIO_CALC_REPLAYMANAGER))
             {
+                delete replayMgr->drawChain;
+                replayMgr->drawChain = NULL;
+                g_Chain.Cut(replayMgr->calcChain);
                 return ZUN_ERROR;
             }
             replayMgr->calcChainDemoHighPrio = NULL;
@@ -106,6 +138,9 @@ ZunResult ReplayManager::RegisterChain(i32 isDemo, const char *replayFile)
             replayMgr->calcChain->arg = replayMgr;
             if (g_Chain.AddToCalcChain(replayMgr->calcChain, TH_CHAIN_PRIO_CALC_LOW_PRIO_REPLAYMANAGER_DEMO))
             {
+                delete replayMgr->drawChain;
+                replayMgr->drawChain = NULL;
+                g_Chain.Cut(replayMgr->calcChain);
                 return ZUN_ERROR;
             }
             replayMgr->calcChainDemoHighPrio = g_Chain.CreateElem((ChainCallback)ReplayManager::OnUpdateDemoLowPrio);
@@ -145,13 +180,18 @@ ChainCallbackResult ReplayManager::OnUpdate(ReplayManager *mgr)
 {
     u16 inputs;
 
-    if (!g_GameManager.isInMenu)
+    if (!g_GameManager.isInMenu || mgr->recordingStopped)
     {
         return CHAIN_CALLBACK_RESULT_CONTINUE;
     }
     inputs = IS_PRESSED(TH_BUTTON_REPLAY_CAPTURE);
     if (inputs != mgr->replayInputs->inputKey)
     {
+        const auto* start=mgr->replayData->stageReplayData[g_GameManager.currentStage-1]->replayInputs;
+        if(mgr->replayInputs-start>=53995) {
+            mgr->recordingOverflow=true;
+            return CHAIN_CALLBACK_RESULT_CONTINUE;
+        }
         mgr->replayInputs += 1;
         mgr->replayInputStageBookmarks[g_GameManager.currentStage - 1] = mgr->replayInputs + 1;
         mgr->replayInputs->frameNum = mgr->frameId;
@@ -237,6 +277,7 @@ ZunResult ReplayManager::AddedCallback(ReplayManager *mgr)
     i32 idx;
 
     mgr->frameId = 0;
+    mgr->recordingStopped=false;
     if (mgr->replayData == NULL)
     {
         mgr->replayData = new ReplayData();
@@ -264,8 +305,9 @@ ZunResult ReplayManager::AddedCallback(ReplayManager *mgr)
     {
         utils::DebugPrint2("error : replay.cpp");
     }
-    mgr->replayData->stageReplayData[g_GameManager.currentStage - 1] = AllocateStageReplayData(sizeof(StageReplayData));
+    mgr->replayData->stageReplayData[g_GameManager.currentStage - 1] = static_cast<StageReplayData*>(std::calloc(1,sizeof(StageReplayData)));
     stageReplayData = mgr->replayData->stageReplayData[g_GameManager.currentStage - 1];
+    if(!stageReplayData)return ZUN_ERROR;
     stageReplayData->bombsRemaining = g_GameManager.bombsRemaining;
     stageReplayData->livesRemaining = g_GameManager.livesRemaining;
     stageReplayData->power = g_GameManager.currentPower;
@@ -276,12 +318,16 @@ ZunResult ReplayManager::AddedCallback(ReplayManager *mgr)
 #ifdef __3DS__
     // Preserve the collection rule per stage without changing the replay layout.
     CtrSettings::EndReplayCollection();
-    std::memcpy(stageReplayData->padding,
-                CtrSettings::Enabled(CtrSettings::Toggle::AutoCollect)?"POC":"\0\0\0",3);
+    // Language changes dialogue lengths/timing. Player and graphics variants
+    // can also select animation scripts. Replay with the recorded content.
+    stageReplayData->padding[0]='R';stageReplayData->padding[1]=1;
+    stageReplayData->padding[2]=(CtrSettings::Enabled(CtrSettings::Toggle::AutoCollect)?1:0)|
+        (CtrSettings::English()?2:0)|(CtrSettings::Retexture()?4:0)|(CtrSettings::NewSprites()?8:0);
 #endif
     mgr->replayInputs = stageReplayData->replayInputs;
     mgr->replayInputs->frameNum = 0;
     mgr->replayInputs->inputKey = 0;
+    mgr->replayInputStageBookmarks[g_GameManager.currentStage-1]=mgr->replayInputs+1;
     mgr->unk44 = 0;
     return ZUN_SUCCESS;
 }
@@ -322,7 +368,9 @@ ZunResult ReplayManager::AddedCallbackDemo(ReplayManager *mgr)
     replayData = mgr->replayData->stageReplayData[g_GameManager.currentStage - 1];
 #ifdef __3DS__
     // Native/older replays use the original max-power collection rule.
-    CtrSettings::ReplayCollection(std::memcmp(replayData->padding,"POC",3)==0);
+    if(replayData->padding[0]=='R' && replayData->padding[1]==1)
+        CtrSettings::ReplayOptions(static_cast<unsigned char>(replayData->padding[2]));
+    else CtrSettings::ReplayCollection(std::memcmp(replayData->padding,"POC",3)==0);
 #endif
     g_GameManager.character = mgr->replayData->header->shottypeChara / 2;
     g_GameManager.shotType = mgr->replayData->header->shottypeChara % 2;
@@ -366,7 +414,7 @@ ZunResult ReplayManager::DeletedCallback(ReplayManager *mgr)
 void ReplayManager::StopRecording()
 {
     ReplayManager *mgr = g_ReplayManager;
-    if (mgr != NULL)
+    if (mgr != NULL && !mgr->IsDemo() && !mgr->recordingStopped)
     {
         mgr->replayInputs += 1;
         mgr->replayInputs->frameNum = mgr->frameId;
@@ -375,144 +423,59 @@ void ReplayManager::StopRecording()
         mgr->replayInputs->frameNum = 9999999;
         mgr->replayInputs->inputKey = 0;
         mgr->replayInputStageBookmarks[g_GameManager.currentStage - 1] = mgr->replayInputs + 1;
+        mgr->recordingStopped=true;
     }
 }
 
-void ReplayManager::SaveReplay(const char *replayPath, char *replayName)
+bool ReplayManager::SaveReplay(const char* replayPath,char* replayName)
 {
-    ReplayManager *mgr;
-    FILE *file;
-    const u8 *checksumCursor;
-    ReplayHeader replayCopy;
-    u8 *obfuscateCursor;
-    i32 obfStagePos;
-    u8 obfOffset;
-    u32 checksum;
-    i32 csumStagePos;
-    size_t stageReplayPos;
-    f32 slowDown;
-    i32 stageIdx;
-    std::time_t time;
-    const std::tm *tm;
-
-    time = std::time(NULL);
-    tm = std::localtime(&time);
-
-    if (g_ReplayManager != NULL)
-    {
-        mgr = g_ReplayManager;
-        if (!mgr->IsDemo())
-        {
-            if (replayPath != NULL)
-            {
-                replayCopy = *mgr->replayData->header;
-                ReplayManager::StopRecording();
-                stageReplayPos = sizeof(ReplayHeader);
-                for (stageIdx = 0; stageIdx < ARRAY_SIZE_SIGNED(g_ReplayManager->replayData->stageReplayData);
-                     stageIdx += 1)
-                {
-                    if (mgr->replayData->stageReplayData[stageIdx] != NULL)
-                    {
-                        replayCopy.stageReplayDataOffsets[stageIdx] = (u32)stageReplayPos;
-                        stageReplayPos += (size_t)((u8 *)mgr->replayInputStageBookmarks[stageIdx] -
-                                                   (u8 *)mgr->replayData->stageReplayData[stageIdx]);
-                    }
-                }
-                utils::DebugPrint2("%s write ...\n", replayPath);
-                replayCopy.score = g_GameManager.guiScore;
-                slowDown = (g_Supervisor.unk1b4 / g_Supervisor.unk1b8 - 0.5f) * 2.0f;
-                if (slowDown < 0.0f)
-                {
-                    slowDown = 0.0f;
-                }
-                else if (slowDown >= 1.0f)
-                {
-                    slowDown = 1.0f;
-                }
-                replayCopy.slowdownRate = (1.0f - slowDown) * 100.0f;
-                replayCopy.slowdownRate2 = replayCopy.slowdownRate + 1.12f;
-                replayCopy.slowdownRate3 = replayCopy.slowdownRate + 2.34f;
-                mgr->replayData->stageReplayData[g_GameManager.currentStage - 1]->score = g_GameManager.score;
-                std::strcpy(replayCopy.name, replayName);
-                std::sprintf(replayCopy.date, "%02i/%02i/%02i", tm->tm_mon, tm->tm_mday, tm->tm_year % 100);
-                replayCopy.key = g_Rng.GetRandomU16InRange(128) + 64;
-                replayCopy.rngValue3 = g_Rng.GetRandomU16InRange(256);
-                replayCopy.rngValue1 = g_Rng.GetRandomU16InRange(256);
-                replayCopy.rngValue2 = g_Rng.GetRandomU16InRange(256);
-
-                // Calculate the checksum.
-                checksumCursor = (u8 *)&replayCopy.key;
-                checksum = 0x3f000318;
-                for (stageIdx = 0; stageIdx < sizeof(ReplayHeader) - offsetof(ReplayHeader, key);
-                     stageIdx += 1, checksumCursor += 1)
-                {
-                    checksum += *checksumCursor;
-                }
-                for (stageIdx = 0; stageIdx < ARRAY_SIZE_SIGNED(mgr->replayData->stageReplayData); stageIdx += 1)
-                {
-                    if (mgr->replayData->stageReplayData[stageIdx] != NULL)
-                    {
-                        checksumCursor = (u8 *)mgr->replayData->stageReplayData[stageIdx];
-                        for (csumStagePos = 0; csumStagePos < ((iptr)mgr->replayInputStageBookmarks[stageIdx]) -
-                                                                  ((iptr)mgr->replayData->stageReplayData[stageIdx]);
-                             csumStagePos += 1, checksumCursor += 1)
-                        {
-                            checksum += *checksumCursor;
-                        }
-                    }
-                }
-                replayCopy.checksum = checksum;
-
-                // Obfuscate the data.
-                obfuscateCursor = (u8 *)&replayCopy.rngValue3;
-                obfOffset = replayCopy.key;
-                for (stageIdx = 0; stageIdx < sizeof(ReplayHeader) - offsetof(ReplayHeader, rngValue3);
-                     stageIdx += 1, obfuscateCursor += 1)
-                {
-                    *obfuscateCursor += obfOffset;
-                    obfOffset += 7;
-                }
-                for (stageIdx = 0; stageIdx < ARRAY_SIZE_SIGNED(mgr->replayData->stageReplayData); stageIdx += 1)
-                {
-                    if (mgr->replayData->stageReplayData[stageIdx] != NULL)
-                    {
-                        obfuscateCursor = (u8 *)mgr->replayData->stageReplayData[stageIdx];
-                        for (obfStagePos = 0; obfStagePos < ((iptr)mgr->replayInputStageBookmarks[stageIdx]) -
-                                                                ((iptr)mgr->replayData->stageReplayData[stageIdx]);
-                             obfStagePos += 1, obfuscateCursor += 1)
-                        {
-                            *obfuscateCursor += obfOffset;
-                            obfOffset += 7;
-                        }
-                    }
-                }
-
-                // Write the data to the replay file.
-                file = FileSystem::FopenUTF8(replayPath, "wb");
-                std::fwrite(&replayCopy, sizeof(ReplayHeader), 1, file);
-                for (stageIdx = 0; stageIdx < ARRAY_SIZE_SIGNED(mgr->replayData->stageReplayData); stageIdx += 1)
-                {
-                    if (mgr->replayData->stageReplayData[stageIdx] != NULL)
-                    {
-                        std::fwrite(mgr->replayData->stageReplayData[stageIdx], 1,
-                                    ((iptr)mgr->replayInputStageBookmarks[stageIdx]) -
-                                        ((iptr)mgr->replayData->stageReplayData[stageIdx]),
-                                    file);
-                    }
-                }
-                std::fclose(file);
-            }
-            for (stageIdx = 0; stageIdx < ARRAY_SIZE_SIGNED(mgr->replayData->stageReplayData); stageIdx += 1)
-            {
-                if (g_ReplayManager->replayData->stageReplayData[stageIdx] != NULL)
-                {
-                    utils::DebugPrint2("Replay Size %d\n", ((iptr)mgr->replayInputStageBookmarks[stageIdx]) -
-                                                               ((iptr)mgr->replayData->stageReplayData[stageIdx]));
-                    ReleaseStageReplayData(g_ReplayManager->replayData->stageReplayData[stageIdx]);
-                }
-            }
+    auto* mgr=g_ReplayManager;
+    if(!mgr)return true;
+    if(!mgr->IsDemo() && replayPath) {
+        if(mgr->recordingOverflow)return false;
+        StopRecording();
+        ReplayHeader header=*mgr->replayData->header;
+        std::vector<u8> bytes(sizeof(header));
+        for(int stage=0;stage<7;stage++) {
+            const auto* data=mgr->replayData->stageReplayData[stage];
+            header.stageReplayDataOffsets[stage]=0;
+            if(!data)continue;
+            const auto* end=mgr->replayInputStageBookmarks[stage];
+            if(!end)return false;
+            header.stageReplayDataOffsets[stage]=bytes.size();
+            const auto* begin=reinterpret_cast<const u8*>(data);
+            bytes.insert(bytes.end(),begin,reinterpret_cast<const u8*>(end));
+            if(stage==g_GameManager.currentStage-1)
+                std::memcpy(bytes.data()+header.stageReplayDataOffsets[stage],&g_GameManager.score,sizeof(g_GameManager.score));
         }
-        g_Chain.Cut(g_ReplayManager->calcChain);
+        header.score=g_GameManager.guiScore;
+        const float ratio=g_Supervisor.unk1b8>0?g_Supervisor.unk1b4/g_Supervisor.unk1b8:1.f;
+        header.slowdownRate=(1-std::clamp((ratio-.5f)*2,0.f,1.f))*100;
+        header.slowdownRate2=header.slowdownRate+1.12f;
+        header.slowdownRate3=header.slowdownRate+2.34f;
+        const auto now=std::time(nullptr);
+        const auto* date=std::localtime(&now);
+        if(date)std::strftime(header.date,sizeof(header.date),"%m/%d/%y",date);
+        std::memset(header.name,' ',sizeof(header.name));
+        if(replayName)std::memcpy(header.name,replayName,std::min(std::strlen(replayName),sizeof(header.name)));
+        // Saving must not advance the gameplay RNG or encrypt the live recording.
+        auto rng=g_Rng;
+        header.key=rng.GetRandomU16InRange(128)+64;
+        header.rngValue3=rng.GetRandomU16InRange(256);
+        header.rngValue1=rng.GetRandomU16InRange(256);
+        header.rngValue2=rng.GetRandomU16InRange(256);
+        std::memcpy(bytes.data(),&header,sizeof(header));
+        u32 checksum=0x3f000318;
+        for(size_t i=offsetof(ReplayHeader,key);i<bytes.size();i++)checksum+=bytes[i];
+        std::memcpy(bytes.data()+offsetof(ReplayHeader,checksum),&checksum,sizeof(checksum));
+        u8 offset=header.key;
+        for(size_t i=offsetof(ReplayHeader,rngValue3);i<bytes.size();i++,offset+=7)bytes[i]+=offset;
+        if(!ReplayStorage::Write(replayPath,bytes.data(),bytes.size()))return false;
     }
-    return;
+    if(!mgr->IsDemo())for(auto*& stage:mgr->replayData->stageReplayData) {
+        if(stage)ReleaseStageReplayData(stage);
+        stage=nullptr;
+    }
+    g_Chain.Cut(mgr->calcChain);
+    return true;
 }

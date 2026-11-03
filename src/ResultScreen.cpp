@@ -932,7 +932,15 @@ i32 ResultScreen::HandleReplaySaveKeyboard()
         if (!CtrKeyboard::InputName(this->replayName,"Replay name (8 characters)"))
             goto GO_TO_CHOOSE_REPLAY_FILE;
         std::sprintf(replayPath,"./replay/th6_%.2d.rpy",this->replayNumber+1);
-        ReplayManager::SaveReplay(replayPath,this->replayName);
+        if(!ReplayManager::SaveReplay(replayPath,this->replayName)) {
+            if(g_ReplayManager && g_ReplayManager->recordingOverflow) {
+                CtrKeyboard::ShowError("This stage exceeded the replay input limit. The game was kept running safely, but this recording cannot be saved.");
+                this->frameTimer=0;this->resultScreenState=RESULT_SCREEN_STATE_CANT_SAVE_REPLAY;
+                return 0;
+            }
+            CtrKeyboard::ShowError("Could not save the replay to /3ds/th06/replay/. Check SD card free space and write access. The previous save has been preserved. Choose another slot to retry.");
+            goto GO_TO_CHOOSE_REPLAY_FILE;
+        }
         this->frameTimer=0;
         this->resultScreenState=RESULT_SCREEN_STATE_EXITING;
         for (idx=0;idx<ARRAY_SIZE_SIGNED(this->unk_40);idx++)this->unk_40[idx].pendingInterrupt=2;

@@ -1203,6 +1203,9 @@ i32 Player::CheckGraze(const ZunVec3 *center, const ZunVec3 *size) const
     bulletTopLeft.y = center->y - size->y / 2.0f - 20.0f;
     bulletBottomRight.x = center->x + size->x / 2.0f + 20.0f;
     bulletBottomRight.y = center->y + size->y / 2.0f + 20.0f;
+#ifdef __3DS__
+    if(bombCollisionBounds.Intersects(bulletTopLeft.x,bulletTopLeft.y,bulletBottomRight.x,bulletBottomRight.y))return 2;
+#else
     bombProjectile = this->bombProjectiles;
 
     for (i = 0; i < ARRAY_SIZE_SIGNED(this->bombProjectiles); i++, bombProjectile++)
@@ -1224,6 +1227,7 @@ i32 Player::CheckGraze(const ZunVec3 *center, const ZunVec3 *size) const
         }
     }
 
+#endif
     if (this->playerState == PLAYER_STATE_DEAD || this->playerState == PLAYER_STATE_SPAWNING)
     {
         return 0;
@@ -1251,6 +1255,9 @@ i32 Player::CalcKillBoxCollision(const ZunVec3 *bulletCenter, const ZunVec3 *bul
     bulletTop = bulletCenter->y - bulletSize->y / 2.0f;
     bulletRight = bulletCenter->x + bulletSize->x / 2.0f;
     bulletBottom = bulletCenter->y + bulletSize->y / 2.0f;
+#ifdef __3DS__
+    if(bombCollisionBounds.Intersects(bulletLeft,bulletTop,bulletRight,bulletBottom))return 2;
+#else
     for (curBombIdx = 0; curBombIdx < ARRAY_SIZE_SIGNED(this->bombProjectiles); curBombIdx++, curBombProjectile++)
     {
         if (curBombProjectile->sizeX == 0.0f)
@@ -1267,6 +1274,7 @@ i32 Player::CalcKillBoxCollision(const ZunVec3 *bulletCenter, const ZunVec3 *bul
             return 2;
         }
     }
+#endif
     if (this->hitboxTopLeft.x > bulletRight || this->hitboxTopLeft.y > bulletBottom ||
         this->hitboxBottomRight.x < bulletLeft || this->hitboxBottomRight.y < bulletTop)
     {

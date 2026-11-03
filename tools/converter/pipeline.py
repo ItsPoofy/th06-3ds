@@ -100,7 +100,7 @@ def convert(source, output, resources, report):
     with tempfile.TemporaryDirectory(prefix='th06-convert-', dir=output.parent) as temporary:
         root = Path(temporary); dest = root/'romfs'
         report('Extracting game data and preparing textures…')
-        prepare_game(source, dest)
+        prepare_game(source, dest, resources)
         required = ('title01.anm', 'stage1.std', 'stage6.std', 'msg1.dat', 'front.anm')
         missing = [name for name in required if not (dest/'data'/name).is_file()]
         if missing:

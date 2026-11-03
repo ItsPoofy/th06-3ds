@@ -8,6 +8,9 @@
 #include "ZunMath.hpp"
 #include "ZunResult.hpp"
 #include "inttypes.hpp"
+#ifdef __3DS__
+#include "platform/3ds/BombCollisionCache.hpp"
+#endif
 
 struct Player;
 
@@ -236,6 +239,9 @@ struct Player
     ChainElem *chainCalc;
     ChainElem *chainDraw1;
     ChainElem *chainDraw2;
+#ifdef __3DS__
+    CtrCollision::BombBounds bombCollisionBounds;
+#endif
 
     inline void SetToTopLeftPos(AnmVm *sprite) const
     {

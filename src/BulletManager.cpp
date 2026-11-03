@@ -666,6 +666,11 @@ ChainCallbackResult BulletManager::OnUpdate(BulletManager *mgr)
         return CHAIN_CALLBACK_RESULT_CONTINUE;
     }
 
+#ifdef __3DS__
+    // Player's bomb update has finished; these regions remain unchanged
+    // throughout this bullet pass. Compute each active bound only once.
+    g_Player.bombCollisionBounds.Prepare(g_Player.bombProjectiles);
+#endif
     g_ItemManager.OnUpdate();
     mgr->bulletCount = 0;
     for (idx = 0; idx < ARRAY_SIZE_SIGNED(mgr->bullets); idx++, curBullet++)

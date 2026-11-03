@@ -41,6 +41,7 @@ bool CtrRuntime::Initialize() {
     mkdir("sdmc:/3ds/th06",0755);
     if(chdir("sdmc:/3ds/th06")) return false;
     FILE* f=fopen("startup.log","w");if(f)fclose(f);
+    mkdir("sdmc:/3ds/th06/replay",0755);
 #ifdef TH06_EMBED_ASSETS
     if(R_FAILED(romfsInit())) {Log("Failed to mount embedded assets");return false;}
     std::atexit([]{romfsExit();});

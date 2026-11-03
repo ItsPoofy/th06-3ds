@@ -1,12 +1,13 @@
-"""Prepare original PBG3 assets and tiled PICA textures before packaging."""
+"""Prepare original and Steam Classic assets and tiled PICA textures."""
 from pathlib import Path
 import io
 import struct
 import numpy as np
 from PIL import Image
 from stage_surfaces import prepare as prepare_surface
+from steam_classic_assets import normalize
 
-from pbg3_archive import archives, unpack
+from game_archives import archives, unpack
 
 
 def write_texture(path, image):
@@ -23,22 +24,25 @@ def write_texture(path, image):
     path.write_bytes(struct.pack('<4s4I', b'TX3D', w, h, pw, ph) + tiled.tobytes())
 
 
-def prepare(source, root=None):
+def prepare(source, root=None, resources=None):
     root = root or source
     root.mkdir(parents=True, exist_ok=True)
     assets = {}
     for archive in archives(source):
         assets.update(unpack(archive))
     if not assets:
-        raise ValueError('No TH06 PBG3 game archives were found. Select the original game folder containing the DAT archives and bgm folder; save and configuration DAT files are ignored.')
+        raise ValueError('No TH06 game archives were found. Select the original or Steam Classic game folder containing the DAT archives and bgm folder; save and configuration DAT files are ignored.')
+    assets = normalize(assets, resources or Path(__file__).parent/'converter/resources')
     raw, textures = root / 'data', root / 'textures'
     raw.mkdir(exist_ok=True)
     textures.mkdir(exist_ok=True)
     images = {}
     for name, data in assets.items():
+        (raw / name).parent.mkdir(parents=True, exist_ok=True)
         (raw / name).write_bytes(prepare_surface(name, data))
-        if name.lower().endswith(('.bmp', '.png', '.jpg')):
+        if name.lower().endswith(('.bmp', '.png', '.jpg', '.dds')):
             images[name] = Image.open(io.BytesIO(data)).convert('RGBA')
+            (textures / name).parent.mkdir(parents=True, exist_ok=True)
             write_texture(textures / (name + '.bin'), images[name])
     count = 0
     for name, data in assets.items():

@@ -458,8 +458,8 @@ void CtrRenderer::SwapBuffers() {
     CtrPresentation::DrawOverlays(top,bottom);
     C2D_Flush();
     EndSegment();
+    sceneComplete=false;
     if(gameplayLayout)CtrPresentation::ReleaseMenuAssets();
-    BeginFrame();
 }
 
 

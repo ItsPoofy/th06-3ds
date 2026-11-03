@@ -11,6 +11,7 @@
 #include "platform/3ds/CtrRenderer.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/Settings.hpp"
+#include "platform/3ds/SpriteTransform.hpp"
 #endif
 
 #include <cstdio>
@@ -1251,7 +1252,11 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
     if (vm->rotation.z != 0.0)
     {
 
+#ifdef __3DS__
+        CtrSpriteTransform::RotateZ(worldTransformMatrix,vm->rotation.z);
+#else
         worldTransformMatrix.Rotate(vm->rotation.z, 0.0f, 0.0f, 1.0f);
+#endif
     }
 
     if ((vm->flags.anchor & AnmVmAnchor_Left) == 0)

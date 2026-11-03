@@ -65,6 +65,8 @@ bool Fill(unsigned slot) {
  return true;
 }
 int StreamThread(void*) {
+ if(SDL_SetThreadPriority(SDL_THREAD_PRIORITY_HIGH)!=0)
+  CtrRuntime::Log("NDSP: could not raise music refill thread priority");
  while(!quit) {
   LightEvent_Wait(&streamEvent);
   if(quit)break;
@@ -111,7 +113,7 @@ bool CtrAudio::Initialize() {
 }
 void CtrAudio::Shutdown() {
  if(!initialized)return;
- CtrSfx::StopRequests();
+ CtrSfx::BeginReload();
  streamActive=false;quit=true;LightEvent_Signal(&streamEvent);
  if(worker)SDL_WaitThread(worker,nullptr);worker=nullptr;
  {Guard guard;StopLocked();}
@@ -177,4 +179,10 @@ void CtrAudio::UpdateEffects() {
  if(musicVolume.exchange(bgm,std::memory_order_relaxed)!=bgm && streamActive)
   LightEvent_Signal(&streamEvent);
  CtrSfx::SetVolume(CtrSettings::SfxVolume());
+ static u32 reportedDrops=0;
+ const u32 drops=ndspGetDroppedFrames();
+ if(drops-reportedDrops>=60) {
+  char message[96];std::snprintf(message,sizeof(message),"NDSP: dropped audio frames %lu",static_cast<unsigned long>(drops));
+  CtrRuntime::Log(message);reportedDrops=drops;
+ }
 }

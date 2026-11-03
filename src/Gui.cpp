@@ -695,9 +695,11 @@ ZunResult GuiImpl::RunMsg()
     }
 #ifdef __3DS__
     enum class Action { None, Finish, Next };
-    const bool confirm=g_GameManager.isInReplay || g_GameManager.demoMode?
-        ((g_CurFrameInput & ~g_LastFrameInput)&TH_BUTTON_SELECTMENU)!=0:
-        CtrLatchedInput::Pressed(TH_BUTTON_SELECTMENU)!=0;
+    const bool modernInput=(!g_GameManager.isInReplay && !g_GameManager.demoMode) || CtrSettings::ReplayHasOptions();
+    // Physical confirms are recorded as ENTER pulses; latched fire must not
+    // become a new confirm simply because a replay starts or dialogue opens.
+    const bool confirm=((g_CurFrameInput & ~g_LastFrameInput)&
+        (modernInput?TH_BUTTON_ENTER:TH_BUTTON_SELECTMENU))!=0;
     Action action=confirm && CtrDialogue::Active() && this->msg.currentInstr->opcode!=MSG_OPCODE_MSGHALT?
         (CtrDialogue::Revealing()?Action::Finish:Action::Next):Action::None;
     bool fastForward=action!=Action::None;
