@@ -81,6 +81,7 @@ private:
     void EndSegment();
     void SplitSegment();
     void FinishTextureReads();
+    bool SceneHoldsFill(u32 bits,u32 depth) const;
     void UploadPixel(Texture& tex,int x,int y,const u8* p,PixelFormat f,PixelDataType t);
     CtrMenuLayer menuLayer;
     bool drawingMenuLayer=false;
@@ -125,6 +126,8 @@ private:
     ZunColor factor=0xffffffff,fogColor=0;
     float fogNear=0,fogFar=1000,depthNear=0,depthFar=1,clearDepth=1;
     u32 viewport[4]{0,0,640,480},clearColor=0x000000ff;
+    // Buffers whose last fill no scene geometry has covered this frame.
+    struct SceneFill {u32 bits=0,color=0,depth=0;} sceneFill;
     BlendMode blend=BLEND_INV_SRC_ALPHA;
     DepthFunc depthFunc=DEPTH_FUNC_LEQUAL;
 };

@@ -1019,14 +1019,16 @@ ZunResult AnmManager::AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices)
     if(!allocation)return ZUN_ERROR;
     if(this->spritesToDraw && allocation!=this->vertexBufferEndPtr)this->FlushVertexBuffer();
     if(!this->spritesToDraw)this->vertexBufferStartPtr=this->vertexBufferEndPtr=allocation;
-    constexpr int indices[]={0,1,2,1,2,3};
     const auto color=this->dirtytTextureFactor;
     const u32 rgba=(color&0xff00ff00u)|((color&255)<<16)|((color>>16)&255);
-    for(int i=0;i<6;i++) {
-        auto& out=this->vertexBufferEndPtr[i];const auto& in=vertices[indices[i]];
-        out.position=ZunVec3(in.position.x,in.position.y,in.position.z);
-        out.textureUV=in.textureUV;out.diffuse=rgba;
+    // Convert each corner once. The two triangles share corners 1 and 2.
+    BatchedVertex corners[4];
+    for(int i=0;i<4;i++) {
+        const auto& in=vertices[i];
+        corners[i]={ZunVec3(in.position.x,in.position.y,in.position.z),in.textureUV,rgba};
     }
+    constexpr int indices[]={0,1,2,1,2,3};
+    for(int i=0;i<6;i++)this->vertexBufferEndPtr[i]=corners[indices[i]];
 #else
     if(this->vertexBufferEndPtr+6>this->vertexBuffer+0x18000)this->FlushVertexBuffer();
     this->vertexBufferEndPtr[0] = vertices[0];

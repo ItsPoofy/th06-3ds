@@ -112,6 +112,7 @@ void CtrRenderer::BeginFrame() {
     if(frameOpen || exiting || suspended || aptShouldClose())return;
     if(!C3D_FrameBegin(C3D_FRAME_SYNCDRAW))return;
     frameOpen=true; sceneComplete=false; menuLayer.Reset(); vertexCursor=0; queuedCommands=0; retired.clear();
+    sceneFill={};
     C3D_FrameDrawOn(sceneTarget);
     ApplyState();
 }
@@ -236,17 +237,26 @@ void CtrRenderer::ApplyFog() {
     if(!applied.valid || applied.fogColor!=fogColor)C3D_FogColor(ABGR(fogColor)&0xffffff);
     applied.fogColor=fogColor;
 }
+bool CtrRenderer::SceneHoldsFill(u32 bits,u32 depth) const {
+    if(bits&~sceneFill.bits)return false;
+    if((bits&CLEAR_COLOR_BUFFER) && sceneFill.color!=clearColor)return false;
+    return !(bits&CLEAR_DEPTH_BUFFER) || sceneFill.depth==depth;
+}
 void CtrRenderer::Clear(u32 bits) {
     if(!frameOpen)BeginFrame();
     if(!frameOpen)return;
+    const u32 depth=u32(std::clamp(clearDepth,0.0f,1.0f)*0xffffff);
+    if(SceneHoldsFill(bits,depth))return;
     if(queuedCommands>=16)FinishTextureReads();
     if(vertexCursor) {
         FlushVertices();
         SplitSegment();
     }
-    C3D_RenderTargetClear(sceneTarget,(C3D_ClearBits)bits,clearColor,
-                         u32(std::clamp(clearDepth,0.0f,1.0f)*0xffffff));
+    C3D_RenderTargetClear(sceneTarget,(C3D_ClearBits)bits,clearColor,depth);
     ++queuedCommands;
+    if(bits&CLEAR_COLOR_BUFFER)sceneFill.color=clearColor;
+    if(bits&CLEAR_DEPTH_BUFFER)sceneFill.depth=depth;
+    sceneFill.bits|=bits;
 }
 GfxTextureHandle CtrRenderer::CreateTexture() {
     for(u32 i=1;i<textures.size();i++) if(!textures[i]) {
@@ -409,6 +419,7 @@ void CtrRenderer::Draw(PrimitiveType type,i32 first,i32 count) {
     applied.colorOps[0]=colorOps[0];applied.colorOps[1]=colorOps[1];applied.valid=true;
     C3D_DrawArrays(type==PRIM_TRIANGLES?GPU_TRIANGLES:GPU_TRIANGLE_STRIP,
                   direct?u32(offset/sizeof(Vertex)):vertexCursor,count);
+    if(!drawingMenuLayer)sceneFill={};
     if(!direct)vertexCursor+=count;
 }
 void CtrRenderer::FlushVertices() {
