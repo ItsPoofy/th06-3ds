@@ -44,6 +44,10 @@ Screenshots taken in Azahar.
 
 Download `TH06-Asset-Converter.exe` and either `th06.3dsx` or `th06.cia` from the [latest release](https://github.com/ItsPoofy/th06-3ds/releases/latest).
 
+To install the latest CIA directly on your 3DS, open FBI, select **Remote Install > Scan QR Code**, and scan this code. Prepare and copy the assets with the steps below.
+
+[![QR code for the latest th06.cia download](docs/download-cia-qr.png)](https://github.com/ItsPoofy/th06-3ds/releases/latest/download/th06.cia)
+
 1. Put the converter in a writable folder on your PC, then run it.
 2. Select your TH06 game folder—the folder containing the DAT archives and `bgm` (`th06c` for Steam Classic).
 3. Wait for **Assets ready**. The converter creates an `assets` folder beside the executable. Music conversion can take a few minutes.
