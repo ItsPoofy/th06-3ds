@@ -5,6 +5,7 @@
 #include "platform/3ds/PlayfieldText.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/CtrRenderer.hpp"
+#include "platform/3ds/Settings.hpp"
 #include "MainMenu.hpp"
 #endif
 
@@ -855,7 +856,12 @@ void StageMenu::OnDrawRetryMenu()
         {
             this->menuSprites[RETRY_MENU_SPRITE_RETRIES_NUMBER] = this->menuSprites[RETRY_MENU_SPRITE_RETRIES_LABEL];
             this->menuSprites[RETRY_MENU_SPRITE_RETRIES_NUMBER].pos.x +=
+#ifdef __3DS__
+                (CtrSettings::English() ? -16.0f : 8.0f) *
+                this->menuSprites[RETRY_MENU_SPRITE_RETRIES_NUMBER].scaleX;
+#else
                 8.0f * this->menuSprites[RETRY_MENU_SPRITE_RETRIES_NUMBER].scaleX;
+#endif
             this->menuSprites[RETRY_MENU_SPRITE_RETRIES_NUMBER].sprite =
                 &g_AnmManager->sprites[30 - g_GameManager.numRetries];
             g_AnmManager->DrawNoRotation(&this->menuSprites[RETRY_MENU_SPRITE_RETRIES_NUMBER]);
@@ -864,6 +870,17 @@ void StageMenu::OnDrawRetryMenu()
         {
             if (this->menuSprites[idx].flags.isVisible)
             {
+#ifdef __3DS__
+                if (idx == RETRY_MENU_SPRITE_RETRIES_LABEL && CtrSettings::English())
+                {
+                    // English occupies the first 32 px of the 64 px label.
+                    // Put the 16 px digit before it and center the 48 px pair.
+                    auto label = this->menuSprites[idx];
+                    label.pos.x += 24.0f * label.scaleX;
+                    g_AnmManager->DrawNoRotation(&label);
+                    continue;
+                }
+#endif
                 g_AnmManager->DrawNoRotation(&this->menuSprites[idx]);
             }
         }
