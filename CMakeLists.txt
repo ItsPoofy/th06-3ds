@@ -12,6 +12,7 @@ add_executable(th06 ${CORE_SOURCES}
     src/midi/MidiDefault.cpp
     src/platform/3ds/CtrRenderer.cpp
     src/platform/3ds/MenuLayer.cpp
+    src/platform/3ds/MusicControls.cpp
     src/platform/3ds/MusicDescription.cpp
     src/platform/3ds/GameplayHud.cpp
     src/platform/3ds/GameplayLogo.cpp

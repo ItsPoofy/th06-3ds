@@ -17,9 +17,11 @@ namespace {
 constexpr unsigned BlockBytes=8192,Slots=3;
 struct Block {u32 samples,bytes,offset;ndspAdpcmData context[2];};
 static_assert(sizeof(Block)==24);
-struct Slot {ndspWaveBuf wave[2]{};ndspAdpcmData context[2]{};u8* data[2]{};};
+struct Slot {ndspWaveBuf wave[2]{};ndspAdpcmData context[2]{};u8* data[2]{};u32 block=0;};
 Slot slots[Slots];
 FILE* music=nullptr;std::vector<Block> blocks;u16 coefficients[2][16]{};
+// First sample of each block, and the track length, for position and seeking.
+std::vector<u32> blockStarts;u32 totalSamples=0,lastPosition=0;
 u32 rate=0,nextBlock=0,loopBlock=0;unsigned nextSlot=0;
 bool initialized=false,playing=false,looping=false;
 float lastMusicGain=-1;
@@ -45,16 +47,20 @@ std::string Path(const char* input,const char* ext) {
  return TH06_ASSET_ROOT "audio/"+name+ext;
 }
 void Mix(int channel,float left,float right) {float mix[12]{};mix[0]=left;mix[1]=right;ndspChnSetMix(channel,mix);}
+void ClearChannelsLocked() {
+ for(int c=0;c<2;c++){ndspChnSetPaused(c,true);ndspChnWaveBufClear(c);}
+ clearedAt=ndspGetFrameCount();
+}
 void StopLocked() {
  streamActive.store(false,std::memory_order_release);fadeActive=false;
  playing=false;fadeStart=fadeDuration=0;lastMusicGain=-1;
- for(int c=0;c<2;c++){ndspChnSetPaused(c,true);ndspChnWaveBufClear(c);}
- clearedAt=ndspGetFrameCount();
- if(music)fclose(music);music=nullptr;blocks.clear();
+ ClearChannelsLocked();
+ if(music)fclose(music);music=nullptr;blocks.clear();blockStarts.clear();totalSamples=lastPosition=0;
 }
 bool Fill(unsigned slot) {
  if(nextBlock>=blocks.size()) {if(!looping)return false;nextBlock=loopBlock;}
- const auto& b=blocks[nextBlock++];auto& s=slots[slot];
+ auto& s=slots[slot];s.block=nextBlock;
+ const auto& b=blocks[nextBlock++];
  if(fseek(music,b.offset,SEEK_SET)!=0)return false;
  for(int c=0;c<2;c++) {
   if(fread(s.data[c],1,b.bytes,music)!=b.bytes)return false;
@@ -134,17 +140,20 @@ bool CtrAudio::LoadMusic(const char* path) {
   for(const auto& b:blocks)ok=ok && b.samples>0 && b.samples<=14336 && b.bytes==((b.samples+13)/14)*8 && b.offset>=92+blocks.size()*24 && u64(b.offset)+2*b.bytes<=u64(size) && (b.context[0].index>>4)<8 && (b.context[1].index>>4)<8;
  }
  if(!ok){CtrRuntime::Log("NDSP: invalid music asset");StopLocked();return false;}
+ blockStarts.resize(blocks.size());
+ for(size_t i=0;i<blocks.size();i++){blockStarts[i]=totalSamples;totalSamples+=blocks[i].samples;}
  return true;
 }
 bool CtrAudio::HasLoop(){if(!initialized)return false;Guard guard;return music && loopBlock<blocks.size();}
-bool CtrAudio::PlayMusic(bool loop) {
- if(!initialized || aptShouldClose())return false;Guard guard;if(!music || blocks.empty())return false;
+namespace {
+// Queues the loaded track from firstBlock. Expects the lock and cleared channels.
+bool StartLocked(u32 firstBlock) {
  // The DSP must acknowledge queue clearing before those fixed buffers are reused.
  while(u32(ndspGetFrameCount()-clearedAt)<2) {
   if(quit.load(std::memory_order_acquire) || aptShouldClose())return false;
   SDL_Delay(1);
  }
- looping=loop;nextBlock=0;nextSlot=0;fadeStart=fadeDuration=0;fadeActive=false;
+ nextBlock=firstBlock;nextSlot=0;lastPosition=blockStarts[firstBlock];fadeStart=fadeDuration=0;fadeActive=false;
  musicVolume=CtrSettings::BgmVolume();
  for(int c=0;c<2;c++) {
   ndspChnReset(c);ndspChnSetPaused(c,true);ndspChnSetFormat(c,NDSP_FORMAT_MONO_ADPCM);
@@ -156,7 +165,20 @@ bool CtrAudio::PlayMusic(bool loop) {
  ndspChnSetPaused(0,false);ndspChnSetPaused(1,false);playing=true;
  streamActive.store(true,std::memory_order_release);LightEvent_Signal(&streamEvent);return true;
 }
+}
+bool CtrAudio::PlayMusic(bool loop) {
+ if(!initialized || aptShouldClose())return false;Guard guard;if(!music || blocks.empty())return false;
+ looping=loop;return StartLocked(0);
+}
 void CtrAudio::StopMusic(){if(initialized){Guard guard;StopLocked();}}
+bool CtrAudio::MusicPosition(float& seconds,float& duration) {
+ if(!initialized)return false;Guard guard;
+ if(!playing || !rate)return false;
+ for(const auto& slot:slots)if(slot.wave[0].status==NDSP_WBUF_PLAYING) {
+  lastPosition=blockStarts[slot.block]+ndspChnGetSamplePos(0);break;
+ }
+ seconds=float(lastPosition)/rate;duration=float(totalSamples)/rate;return true;
+}
 void CtrAudio::FadeMusic(float seconds) {
  if(!initialized)return;Guard guard;
  if(seconds<=0)StopLocked();

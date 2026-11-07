@@ -29,6 +29,9 @@ struct MusicRoom
     bool ProcessInput();
     void DisplayDescription();
     void PlayTrack(i32 index);
+#ifdef __3DS__
+    void HandleTouch(int x, int y);
+#endif
     ZunResult CheckInputEnable();
     static ChainCallbackResult OnDraw(MusicRoom *musicRoom);
     static ChainCallbackResult OnUpdate(MusicRoom *musicRoom);

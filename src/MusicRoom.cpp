@@ -10,7 +10,10 @@
 #include "utils.hpp"
 #ifdef __3DS__
 #include "platform/3ds/CtrRenderer.hpp"
+#include "platform/3ds/MusicControls.hpp"
 #include "platform/3ds/MusicDescription.hpp"
+#include "platform/3ds/NdspAudio.hpp"
+#include "platform/3ds/Touch.hpp"
 #endif
 #include <cstdlib>
 #include <cstring>
@@ -94,6 +97,11 @@ bool MusicRoom::ProcessInput()
         this->DisplayDescription();g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
     }
 
+#ifdef __3DS__
+    int touchX=0,touchY=0;
+    if(CtrTouch::Tap(touchX,touchY))this->HandleTouch(touchX,touchY);
+#endif
+
     if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
     {
         g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);
@@ -120,6 +128,31 @@ void MusicRoom::PlayTrack(i32 index)
     this->descriptionPage = 0;
     this->DisplayDescription();
 }
+
+#ifdef __3DS__
+void MusicRoom::HandleTouch(int x, int y)
+{
+    using CtrMusicControls::Action;
+    switch (CtrMusicControls::Hit(x, y))
+    {
+    case Action::None:
+        return;
+    case Action::Previous:
+        this->PlayTrack((this->selectedSongIndex + this->numDescriptors - 1) % this->numDescriptors);
+        break;
+    case Action::Next:
+        this->PlayTrack((this->selectedSongIndex + 1) % this->numDescriptors);
+        break;
+    case Action::StartStop:
+        if (float seconds, duration; CtrAudio::MusicPosition(seconds, duration))
+            g_Supervisor.StopAudio();
+        else
+            this->PlayTrack(this->selectedSongIndex);
+        break;
+    }
+    g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
+}
+#endif
 
 static MusicRoom g_MusicRoom;
 ZunResult MusicRoom::RegisterChain()
@@ -263,6 +296,7 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
     }
 #ifdef __3DS__
     g_AnmManager->FlushVertexBuffer();renderer->EndMenuLayer();
+    CtrMusicControls::Draw();
 #endif
 
     g_AsciiManager.color = COLOR_WHITE;
