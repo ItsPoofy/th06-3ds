@@ -10,6 +10,7 @@ void BeginScene();
 void MarkScene();
 bool HasScene();
 void LoadSurface(int slot,const char* path);
+void ReleaseSurface(int slot);
 bool ReplacesSurface(int slot);
 void CaptureMenu(const MainMenu& menu);
 void TouchMenu(MainMenu& menu,int x,int y);

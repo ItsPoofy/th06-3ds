@@ -10,9 +10,23 @@
 #include "utils.hpp"
 #ifdef __3DS__
 #include "platform/3ds/CtrRenderer.hpp"
+#include "platform/3ds/MusicDescription.hpp"
 #endif
 #include <cstdlib>
 #include <cstring>
+
+#ifdef __3DS__
+namespace {
+constexpr float ListScale=1.4f;
+constexpr float ListTop=96,ListSpacing=25;
+constexpr float ListArrowX=8,ListNumberX=32,ListTitleX=98;
+constexpr float DescriptionScale=1.2f;
+constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
+constexpr float DescriptionRowWidth=(640-2*DescriptionLeft)/DescriptionScale;
+constexpr int DescriptionRowsPerPage=8;
+constexpr int MaxDescriptionRows=64;
+}
+#endif
 
 ZunResult MusicRoom::CheckInputEnable()
 {
@@ -71,19 +85,12 @@ bool MusicRoom::ProcessInput()
     if (WAS_PRESSED(TH_BUTTON_SELECTMENU))
     {
         g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
-        this->selectedSongIndex = this->cursor;
-        g_Supervisor.PlayAudio(this->trackDescriptors[this->selectedSongIndex].path);
-
-        this->descriptionPage=0;
-        this->DisplayDescription();
+        this->PlayTrack(this->cursor);
     }
 
     if(WAS_PRESSED(TH_BUTTON_LEFT) || WAS_PRESSED(TH_BUTTON_RIGHT)) {
-        int lines=0;
-        for(int row=0;row<32;row++)if(this->trackDescriptors[this->selectedSongIndex].description[row][0])lines=row+1;
-        const int pages=std::max(1,(lines+7)/8);
         const int direction=WAS_PRESSED(TH_BUTTON_RIGHT)?1:-1;
-        this->descriptionPage=(this->descriptionPage+direction+pages)%pages;
+        this->descriptionPage=(this->descriptionPage+direction+this->descriptionPages)%this->descriptionPages;
         this->DisplayDescription();g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
     }
 
@@ -95,6 +102,23 @@ bool MusicRoom::ProcessInput()
     }
 
     return false;
+}
+
+void MusicRoom::PlayTrack(i32 index)
+{
+    this->selectedSongIndex = index;
+    this->cursor = index;
+    if (this->cursor < this->listingOffset)
+    {
+        this->listingOffset = this->cursor;
+    }
+    else if (this->cursor >= this->listingOffset + 10)
+    {
+        this->listingOffset = this->cursor - 9;
+    }
+    g_Supervisor.PlayAudio(this->trackDescriptors[index].path);
+    this->descriptionPage = 0;
+    this->DisplayDescription();
 }
 
 static MusicRoom g_MusicRoom;
@@ -185,6 +209,23 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
             g_AsciiManager.color = COLOR_WHITE;
         }
 
+#ifdef __3DS__
+        musicRoom->titleSprites[i].pos.x = ListTitleX;
+        musicRoom->titleSprites[i].pos.y = ListTop + (i - musicRoom->listingOffset) * ListSpacing;
+        musicRoom->titleSprites[i].pos.z = 0.0f;
+        g_AnmManager->DrawNoRotation(&musicRoom->titleSprites[i]);
+
+        g_AsciiManager.scale = ZunVec2(ListScale, ListScale);
+        textPos = musicRoom->titleSprites[i].pos;
+        if (musicRoom->cursor == i)
+        {
+            textPos.x = ListArrowX;
+            g_AsciiManager.AddString(&textPos, rightArrowStr);
+        }
+        textPos.x = ListNumberX;
+        g_AsciiManager.AddFormatText(&textPos, "%2d.", i + 1);
+        g_AsciiManager.scale = ZunVec2(1.0f, 1.0f);
+#else
         musicRoom->titleSprites[i].pos.x = 93.0f;
         musicRoom->titleSprites[i].pos.y = 104.0f + (((i + 1) - musicRoom->listingOffset) * 18) - 20.0f;
         musicRoom->titleSprites[i].pos.z = 0.0f;
@@ -200,6 +241,7 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
 
         textPos.x += 15.0f;
         g_AsciiManager.AddFormatText(&textPos, "%2d.", i + 1);
+#endif
     }
 
     i++; // ???
@@ -212,10 +254,9 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
     {
 #ifdef __3DS__
         auto& vm=musicRoom->descriptionSprites[i];
-        const auto original=vm.pos;const float sx=vm.scaleX,sy=vm.scaleY;
-        vm.pos.x=24+(i%2)*298;vm.pos.y=96+(i/2)*34;
-        vm.scaleX*=1.2f;vm.scaleY*=1.2f;
-        g_AnmManager->DrawNoRotation(&vm);vm.pos=original;vm.scaleX=sx;vm.scaleY=sy;
+        const float sx=vm.scaleX,sy=vm.scaleY;
+        vm.scaleX*=DescriptionScale;vm.scaleY*=DescriptionScale;
+        g_AnmManager->DrawNoRotation(&vm);vm.scaleX=sx;vm.scaleY=sy;
 #else
         g_AnmManager->DrawNoRotation(&musicRoom->descriptionSprites[i]);
 #endif
@@ -238,7 +279,12 @@ ZunResult MusicRoom::AddedCallback(MusicRoom *musicRoom)
     char lineCharBuffer[64];
     i32 lineIndex;
 
-    if (g_AnmManager->LoadSurface(0, "data/result/music.jpg") != ZUN_SUCCESS)
+#ifdef __3DS__
+    constexpr const char *background = "data/result/result.jpg";
+#else
+    constexpr const char *background = "data/result/music.jpg";
+#endif
+    if (g_AnmManager->LoadSurface(0, background) != ZUN_SUCCESS)
     {
         return ZUN_ERROR;
     }
@@ -378,6 +424,10 @@ finishMusiccmtRead:
         musicRoom->titleSprites[i].pos.y = 104.0f + ((i + 1) * 18) - 20.0f;
         musicRoom->titleSprites[i].pos.z = 0.0f;
         musicRoom->titleSprites[i].flags.anchor = AnmVmAnchor_TopLeft;
+#ifdef __3DS__
+        musicRoom->titleSprites[i].scaleX = ListScale;
+        musicRoom->titleSprites[i].scaleY = ListScale;
+#endif
     }
 
     for(i=0;i<ARRAY_SIZE_SIGNED(musicRoom->descriptionSprites);i++)
@@ -390,15 +440,38 @@ finishMusiccmtRead:
 }
 
 void MusicRoom::DisplayDescription() {
+    const auto& track=this->trackDescriptors[this->selectedSongIndex];
+    int lines=0;
+    for(int row=0;row<32;row++)if(track.description[row][0])lines=row+1;
+#ifdef __3DS__
+    const auto& first=this->descriptionSprites[0];
+    const int fontHeight=first.fontWidth<=0?15:first.fontWidth;
+    CtrMusicDescription::Row rows[MaxDescriptionRows];
+    const int rowCount=CtrMusicDescription::Layout(track.description,lines,fontHeight,first.sprite->widthPx,
+        DescriptionRowWidth,rows,MaxDescriptionRows);
+    this->descriptionPages=std::max(1,(rowCount+DescriptionRowsPerPage-1)/DescriptionRowsPerPage);
+    for(int i=0;i<ARRAY_SIZE_SIGNED(this->descriptionSprites);i++) {
+        auto& sprite=this->descriptionSprites[i];
+        const int row=this->descriptionPage*DescriptionRowsPerPage+i/2;
+        sprite.flags.flag1=row<rowCount && i%2<rows[row].partCount;
+        if(!sprite.flags.flag1)continue;
+        const auto& part=rows[row].parts[i%2];
+        g_AnmManager->DrawVmTextFmt(&sprite,COLOR_MUSIC_ROOM_SONG_DESC_TEXT,COLOR_MUSIC_ROOM_SONG_DESC_SHADOW,"%s",part.text);
+        sprite.pos=ZunVec3(DescriptionLeft+part.x*DescriptionScale,DescriptionTop+(i/2)*DescriptionSpacing,0.f);
+        sprite.flags.anchor=AnmVmAnchor_TopLeft;
+    }
+#else
+    this->descriptionPages=std::max(1,(lines+7)/8);
     for(int i=0;i<ARRAY_SIZE_SIGNED(this->descriptionSprites);i++) {
         char line[33]{};
-        const auto* source=this->trackDescriptors[this->selectedSongIndex].description[this->descriptionPage*8+i/2];
+        const auto* source=track.description[this->descriptionPage*8+i/2];
         if(i%2==0 || std::strlen(source)>32)std::memcpy(line,source+(i%2)*32,32);
         auto& sprite=this->descriptionSprites[i];sprite.flags.flag1=line[0]!=0;
         if(line[0])g_AnmManager->DrawVmTextFmt(&sprite,COLOR_MUSIC_ROOM_SONG_DESC_TEXT,COLOR_MUSIC_ROOM_SONG_DESC_SHADOW,"%s",line);
         sprite.pos=ZunVec3((i%2)*248.f+96.f,320.f+(i/2)*16.f,0.f);
         sprite.flags.anchor=AnmVmAnchor_TopLeft;
     }
+#endif
 }
 
 ZunResult MusicRoom::DeletedCallback(MusicRoom *musicRoom)

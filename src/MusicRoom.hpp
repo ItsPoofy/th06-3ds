@@ -28,6 +28,7 @@ struct MusicRoom
     static ZunResult DeletedCallback(MusicRoom *musicRoom);
     bool ProcessInput();
     void DisplayDescription();
+    void PlayTrack(i32 index);
     ZunResult CheckInputEnable();
     static ChainCallbackResult OnDraw(MusicRoom *musicRoom);
     static ChainCallbackResult OnUpdate(MusicRoom *musicRoom);
@@ -40,6 +41,7 @@ struct MusicRoom
     i32 cursor;
     i32 selectedSongIndex;
     i32 descriptionPage;
+    i32 descriptionPages;
     i32 listingOffset;
     i32 numDescriptors;
     TrackDescriptor *trackDescriptors;

@@ -49,6 +49,17 @@ struct Texture {
     void Draw(float x=0,float y=0,unsigned alpha=255) {
         if(ready)CtrNative::DrawImage({&gpu,&sub},x,y,C2D_Color32(255,255,255,alpha));
     }
+    // Scene artwork keeps the source photo's edge rows, and result.jpg's top
+    // row is a grey seam. Filtering at an upscaled resolution also blends the
+    // opposite edge into the first row. Skip one texel row at the top and
+    // bottom and stretch the rest over the full height.
+    void DrawArtwork(unsigned alpha=255) {
+        if(!ready)return;
+        Tex3DS_SubTexture inner=sub;
+        inner.height=sub.height-2;
+        inner.top-=1.f/gpu.height;inner.bottom+=1.f/gpu.height;
+        CtrNative::DrawImage({&gpu,&inner},0,0,C2D_Color32(255,255,255,alpha),1,float(sub.height)/inner.height);
+    }
 };
 Texture previousArtwork;int backgroundFrame=CtrMenuTiming::Frames;
 Texture artwork,mainBottom,creditsBottom,musicBottom,material,font,contentFont;
@@ -143,6 +154,11 @@ void CtrPresentation::LoadSurface(int slot,const char* path) {
     artwork={};backgroundFrame=previousArtwork.ready?0:CtrMenuTiming::Frames;
     surfaceName=name;surfaceVariant=variant;artwork.Load(name);
 }
+void CtrPresentation::ReleaseSurface(int slot) {
+    if(slot!=0 || (!artwork.ready && !previousArtwork.ready))return;
+    if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
+    previousArtwork.Clear();artwork.Clear();surfaceName.clear();surfaceVariant.clear();
+}
 void CtrPresentation::CaptureShade(float left,float top,float right,float bottom,unsigned color,bool backgroundOnly) {
     if(left>0 || top>0 || right<640 || bottom<480)return;
     if(backgroundOnly) {
@@ -231,9 +247,9 @@ void CtrPresentation::CaptureMenu(const MainMenu& menu) {
 void CtrPresentation::DrawBackground(C3D_RenderTarget* top,C3D_RenderTarget* bottom,bool gameplay) {
     C2D_SceneBegin(top);
     if(gameplay)material.Draw();else if(artwork.ready) {
-        artwork.Draw();
+        artwork.DrawArtwork();
         if(backgroundFrame<CtrMenuTiming::Frames) {
-            previousArtwork.Draw(0,0,unsigned(255*(1-CtrMenuTiming::Progress(backgroundFrame++))));
+            previousArtwork.DrawArtwork(unsigned(255*(1-CtrMenuTiming::Progress(backgroundFrame++))));
         } else previousArtwork.Clear();
         Shade(400,240);
     }

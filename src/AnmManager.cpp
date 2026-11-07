@@ -1928,7 +1928,7 @@ ZunResult AnmManager::LoadSurface(i32 surfaceIdx, const char *path)
 {
     if (this->surfaces[surfaceIdx] != NULL)
     {
-        this->ReleaseSurface(surfaceIdx);
+        this->FreeSurface(surfaceIdx);
     }
 
 #ifdef __3DS__
@@ -1952,6 +1952,14 @@ ZunResult AnmManager::LoadSurface(i32 surfaceIdx, const char *path)
 }
 
 void AnmManager::ReleaseSurface(i32 surfaceIdx)
+{
+    this->FreeSurface(surfaceIdx);
+#ifdef __3DS__
+    CtrPresentation::ReleaseSurface(surfaceIdx);
+#endif
+}
+
+void AnmManager::FreeSurface(i32 surfaceIdx)
 {
 #ifdef __3DS__
     if (surfaceTextures[surfaceIdx])
