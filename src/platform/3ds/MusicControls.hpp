@@ -1,9 +1,12 @@
 #pragma once
-// Music Room playback buttons, drawn as ASCII-font text on the lower screen.
+// Music Room playback controls, drawn as ASCII-font text on the lower screen.
 namespace CtrMusicControls {
-enum class Action {None,Previous,StartStop,Next};
+enum class Action {None,Previous,StartStop,Next,Seek};
 // Queues the times and buttons for this frame's lower-screen ASCII pass.
 void Draw();
-// Maps a lower-screen tap to a button and highlights it briefly.
-Action Hit(int x,int y);
+// Draws the scrubber gauge. Call while the renderer's menu layer is active.
+void DrawGauge();
+// Maps a lower-screen tap to a control and highlights it briefly. For Seek,
+// fraction receives the tapped position along the scrubber (0 to 1).
+Action Hit(int x,int y,float& fraction);
 }

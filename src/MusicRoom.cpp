@@ -133,7 +133,8 @@ void MusicRoom::PlayTrack(i32 index)
 void MusicRoom::HandleTouch(int x, int y)
 {
     using CtrMusicControls::Action;
-    switch (CtrMusicControls::Hit(x, y))
+    float fraction = 0;
+    switch (CtrMusicControls::Hit(x, y, fraction))
     {
     case Action::None:
         return;
@@ -149,6 +150,9 @@ void MusicRoom::HandleTouch(int x, int y)
         else
             this->PlayTrack(this->selectedSongIndex);
         break;
+    case Action::Seek:
+        CtrAudio::SeekMusic(fraction);
+        return;
     }
     g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
 }
@@ -295,6 +299,7 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
 #endif
     }
 #ifdef __3DS__
+    CtrMusicControls::DrawGauge();
     g_AnmManager->FlushVertexBuffer();renderer->EndMenuLayer();
     CtrMusicControls::Draw();
 #endif

@@ -5,4 +5,6 @@ bool LoadEffect(int id,const char* path,float gain);void PlayEffect(int id);void
 bool LoadMusic(const char* path);bool HasLoop();bool PlayMusic(bool loop);void StopMusic();void FadeMusic(float seconds);
 // Playback position and track length in seconds. Returns false while no music plays.
 bool MusicPosition(float& seconds,float& duration);
+// Restarts the playing track at fraction (0 to 1) of its length, rounded down to a block.
+void SeekMusic(float fraction);
 }

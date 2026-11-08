@@ -179,6 +179,15 @@ bool CtrAudio::MusicPosition(float& seconds,float& duration) {
  }
  seconds=float(lastPosition)/rate;duration=float(totalSamples)/rate;return true;
 }
+void CtrAudio::SeekMusic(float fraction) {
+ if(!initialized)return;Guard guard;
+ if(!playing || blocks.empty())return;
+ const u32 target=u32(std::clamp(fraction,0.f,1.f)*float(totalSamples-1));
+ const u32 block=u32(std::upper_bound(blockStarts.begin(),blockStarts.end(),target)-blockStarts.begin())-1;
+ streamActive.store(false,std::memory_order_release);
+ ClearChannelsLocked();
+ if(!StartLocked(block))StopLocked();
+}
 void CtrAudio::FadeMusic(float seconds) {
  if(!initialized)return;Guard guard;
  if(seconds<=0)StopLocked();
