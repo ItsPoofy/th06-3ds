@@ -6,6 +6,7 @@
 #include "Controller.hpp"
 #include "FileSystem.hpp"
 #include "SoundPlayer.hpp"
+#include "TextHelper.hpp"
 #include <algorithm>
 #include "utils.hpp"
 #ifdef __3DS__
@@ -18,18 +19,22 @@
 #include <cstdlib>
 #include <cstring>
 
-#ifdef __3DS__
 namespace {
+#ifdef __3DS__
+// Rows run from below the title to the bottom edge.
+constexpr int VisibleRows=15;
 constexpr float ListScale=1.4f;
-constexpr float ListTop=96,ListSpacing=25;
+constexpr float ListTop=88,ListSpacing=25;
 constexpr float ListArrowX=8,ListNumberX=32,ListTitleX=98;
 constexpr float DescriptionScale=1.2f;
 constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
 constexpr float DescriptionRowWidth=(640-2*DescriptionLeft)/DescriptionScale;
 constexpr int DescriptionRowsPerPage=8;
 constexpr int MaxDescriptionRows=64;
-}
+#else
+constexpr int VisibleRows=10;
 #endif
+}
 
 ZunResult MusicRoom::CheckInputEnable()
 {
@@ -58,7 +63,7 @@ bool MusicRoom::ProcessInput()
         if (this->cursor < 0)
         {
             this->cursor = this->numDescriptors - 1;
-            this->listingOffset = std::max<i32>(0,this->numDescriptors - 10);
+            this->listingOffset = std::max<i32>(0,this->numDescriptors - VisibleRows);
         }
         else if (this->listingOffset > this->cursor)
         {
@@ -76,9 +81,9 @@ bool MusicRoom::ProcessInput()
         }
         else
         {
-            if (this->listingOffset <= this->cursor - 10)
+            if (this->listingOffset <= this->cursor - VisibleRows)
             {
-                this->listingOffset = this->cursor - 9;
+                this->listingOffset = this->cursor - VisibleRows + 1;
             }
         }
     }
@@ -120,9 +125,9 @@ void MusicRoom::PlayTrack(i32 index)
     {
         this->listingOffset = this->cursor;
     }
-    else if (this->cursor >= this->listingOffset + 10)
+    else if (this->cursor >= this->listingOffset + VisibleRows)
     {
-        this->listingOffset = this->cursor - 9;
+        this->listingOffset = this->cursor - VisibleRows + 1;
     }
     g_Supervisor.PlayAudio(this->trackDescriptors[index].path);
     this->descriptionPage = 0;
@@ -232,8 +237,7 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
     g_AnmManager->CopySurfaceToBackBuffer(0, 0, 0, 0, 0);
     g_AnmManager->DrawNoRotation(musicRoom->mainVm);
 
-    // Draw the 10 songs in the song select window, and list indices
-    for (i = musicRoom->listingOffset; i < std::min(musicRoom->numDescriptors,musicRoom->listingOffset + 10); i++)
+    for (i = musicRoom->listingOffset; i < std::min(musicRoom->numDescriptors,musicRoom->listingOffset + VisibleRows); i++)
     {
         if (musicRoom->cursor != i)
         {
@@ -409,6 +413,29 @@ ZunResult MusicRoom::AddedCallback(MusicRoom *musicRoom)
                 }
             }
 
+#ifdef __3DS__
+            // The Japanese comments open with "No.N" and the title, which the list already shows.
+            if (currChar - fileBase + 3 <= (i32)g_LastFileSize && std::strncmp(currChar, "No.", 3) == 0)
+            {
+                while (*currChar != '\n' && *currChar != '\r')
+                {
+                    currChar++;
+                    if (currChar - fileBase >= (i32)g_LastFileSize)
+                    {
+                        goto finishMusiccmtRead;
+                    }
+                }
+                while (*currChar == '\n' || *currChar == '\r')
+                {
+                    currChar++;
+                    if (currChar - fileBase >= (i32)g_LastFileSize)
+                    {
+                        goto finishMusiccmtRead;
+                    }
+                }
+            }
+#endif
+
             for (lineIndex = 0; lineIndex < 32; lineIndex++)
             {
                 if (*currChar == '@')
@@ -454,6 +481,10 @@ finishMusiccmtRead:
         std::free(fileBase);return ZUN_ERROR;
     }
 
+#ifdef __3DS__
+    // English titles and comments use the Japanese MS Gothic text style.
+    TextHelper::SetOriginalFont(true);
+#endif
     for (i = 0; i < musicRoom->numDescriptors; i++)
     {
         g_AnmManager->InitializeAndSetSprite(&musicRoom->titleSprites[i], ANM_OFFSET_MUSIC01 + i);
@@ -472,6 +503,9 @@ finishMusiccmtRead:
     for(i=0;i<ARRAY_SIZE_SIGNED(musicRoom->descriptionSprites);i++)
         g_AnmManager->InitializeAndSetSprite(&musicRoom->descriptionSprites[i],ANM_SCRIPT_TEXT_MUSIC_ROOM_DESC+i);
     musicRoom->descriptionPage=0;musicRoom->DisplayDescription();
+#ifdef __3DS__
+    TextHelper::SetOriginalFont(false);
+#endif
 
     std::free(fileBase);
 
@@ -483,6 +517,7 @@ void MusicRoom::DisplayDescription() {
     int lines=0;
     for(int row=0;row<32;row++)if(track.description[row][0])lines=row+1;
 #ifdef __3DS__
+    TextHelper::SetOriginalFont(true);
     const auto& first=this->descriptionSprites[0];
     const int fontHeight=first.fontWidth<=0?15:first.fontWidth;
     CtrMusicDescription::Row rows[MaxDescriptionRows];
@@ -499,6 +534,7 @@ void MusicRoom::DisplayDescription() {
         sprite.pos=ZunVec3(DescriptionLeft+part.x*DescriptionScale,DescriptionTop+(i/2)*DescriptionSpacing,0.f);
         sprite.flags.anchor=AnmVmAnchor_TopLeft;
     }
+    TextHelper::SetOriginalFont(false);
 #else
     this->descriptionPages=std::max(1,(lines+7)/8);
     for(int i=0;i<ARRAY_SIZE_SIGNED(this->descriptionSprites);i++) {

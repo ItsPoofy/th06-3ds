@@ -23,13 +23,14 @@
 #endif
 
 static TTF_Font *g_Font;
+static bool originalFont=false;
 static std::array<std::vector<u8>,3> fontData;
 static std::map<std::pair<int,int>,TTF_Font*> fonts;
 static TTF_Font* FontAtSize(int size,TextHelper::FontRole role=TextHelper::FontRole::Standard) {
 #ifdef __3DS__
     // This is the original MS Gothic text path. Bitmap and menu typefaces
     // are separate assets and retain their own fonts.
-    const bool english=CtrSettings::English() && !fontData[1].empty();
+    const bool english=CtrSettings::English() && !fontData[1].empty() && !originalFont;
 #else
     const bool english=false;
 #endif
@@ -255,7 +256,7 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
     g_Font=FontAtSize(fontHeight*2,role);
     if(!g_Font) return;
 #ifdef __3DS__
-    const bool english=CtrSettings::English() && !fontData[1].empty();
+    const bool english=CtrSettings::English() && !fontData[1].empty() && !originalFont;
     const bool twoRows=balanceSeparator && (CtrSettings::English() || forceWrap) &&
         !(english && role==FontRole::MusicTitle);
 #else
@@ -373,6 +374,11 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
     SDL_FreeSurface(textureSurface);
 
     return;
+}
+
+void TextHelper::SetOriginalFont(bool enabled)
+{
+    originalFont=enabled;
 }
 
 // Extended to free all globals for text helper

@@ -21,6 +21,8 @@ struct TextHelper
     enum class FontRole { Standard, SpellTitle, MusicTitle };
     static ZunResult CreateTextBuffer();
     static void ReleaseTextBuffer();
+    // Renders English with the MS Gothic face used for Japanese while enabled.
+    static void SetOriginalFont(bool enabled);
     static void StageCaption(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow);
     static void Wrapped(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow,int width,bool japaneseSingleLine=false,bool centered=false,bool rightAligned=false,bool outlined=false,FontRole role=FontRole::Standard);
     static void Precache(const char* text,i32 fontHeight);
