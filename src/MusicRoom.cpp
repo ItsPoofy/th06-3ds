@@ -413,29 +413,6 @@ ZunResult MusicRoom::AddedCallback(MusicRoom *musicRoom)
                 }
             }
 
-#ifdef __3DS__
-            // The Japanese comments open with "No.N" and the title, which the list already shows.
-            if (currChar - fileBase + 3 <= (i32)g_LastFileSize && std::strncmp(currChar, "No.", 3) == 0)
-            {
-                while (*currChar != '\n' && *currChar != '\r')
-                {
-                    currChar++;
-                    if (currChar - fileBase >= (i32)g_LastFileSize)
-                    {
-                        goto finishMusiccmtRead;
-                    }
-                }
-                while (*currChar == '\n' || *currChar == '\r')
-                {
-                    currChar++;
-                    if (currChar - fileBase >= (i32)g_LastFileSize)
-                    {
-                        goto finishMusiccmtRead;
-                    }
-                }
-            }
-#endif
-
             for (lineIndex = 0; lineIndex < 32; lineIndex++)
             {
                 if (*currChar == '@')
