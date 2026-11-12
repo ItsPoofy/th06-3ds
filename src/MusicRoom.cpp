@@ -22,10 +22,10 @@
 
 namespace {
 #ifdef __3DS__
-// Rows run from below the title to the bottom edge.
-constexpr int VisibleRows=15;
+// The title ends near y = 80. Rows leave an equal margin below it and above the bottom edge.
+constexpr int VisibleRows=14;
 constexpr float ListScale=1.4f;
-constexpr float ListTop=88,ListSpacing=25;
+constexpr float ListTop=106,ListSpacing=25;
 constexpr float ListArrowX=8,ListNumberX=32,ListTitleX=98;
 constexpr float DescriptionScale=1.2f;
 constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
