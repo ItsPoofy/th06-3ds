@@ -14,6 +14,7 @@
 #include "platform/3ds/MusicControls.hpp"
 #include "platform/3ds/MusicDescription.hpp"
 #include "platform/3ds/NdspAudio.hpp"
+#include "platform/3ds/Settings.hpp"
 #include "platform/3ds/Touch.hpp"
 #endif
 #include <cstdlib>
@@ -235,7 +236,18 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
 
     g_AnmManager->SetCurrentTexture(0);
     g_AnmManager->CopySurfaceToBackBuffer(0, 0, 0, 0, 0);
+#ifdef __3DS__
+    // The English title is stored at half width to fit its 256 px sprite.
+    const float titleScaleX = musicRoom->mainVm->scaleX;
+    if (CtrSettings::English())
+    {
+        musicRoom->mainVm->scaleX *= 2;
+    }
     g_AnmManager->DrawNoRotation(musicRoom->mainVm);
+    musicRoom->mainVm->scaleX = titleScaleX;
+#else
+    g_AnmManager->DrawNoRotation(musicRoom->mainVm);
+#endif
 
     for (i = musicRoom->listingOffset; i < std::min(musicRoom->numDescriptors,musicRoom->listingOffset + VisibleRows); i++)
     {
