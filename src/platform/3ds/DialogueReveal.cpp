@@ -10,7 +10,7 @@ Line lines[CtrDialogue::Capacity];
 constexpr int overflowTexture=263;
 AnmLoadedSprite overflowSprite{};
 bool active=false;
-int frame=0,lineCount=0,readingFrames=0;
+int frame=0,lineCount=0;
 }
 void CtrDialogue::BindOverflow(AnmVm& vm) {
     if(!g_AnmManager->textures[overflowTexture].handle)
@@ -27,7 +27,7 @@ void CtrDialogue::BindOverflow(AnmVm& vm) {
 }
 void CtrDialogue::ReleaseOverflow() {g_AnmManager->ReleaseTexture(overflowTexture);Reset();}
 int CtrDialogue::LineCount() {return lineCount;}
-void CtrDialogue::Reset() {for(auto& line:lines)line={};active=false;frame=0;lineCount=0;readingFrames=0;}
+void CtrDialogue::Reset() {for(auto& line:lines)line={};active=false;frame=0;lineCount=0;}
 void CtrDialogue::StartLine(int index,const char* text,int fontHeight) {
     if(index<0 || index>=Capacity)return;
     if(index==0)Reset();
@@ -39,16 +39,12 @@ void CtrDialogue::StartLine(int index,const char* text,int fontHeight) {
 }
 void CtrDialogue::Tick() {
     if(!active)return;
-    if(!Revealing()){++readingFrames;return;}
+    if(!Revealing())return;
     if(++frame%2)return;
     for(auto& line:lines)if(line.visible<line.count){++line.visible;break;}
 }
 bool CtrDialogue::Active() {return active;}
 bool CtrDialogue::Revealing() {for(const auto& line:lines)if(line.visible<line.count)return true;return false;}
-bool CtrDialogue::AutoAdvanceReady() {
-    int letters=0;for(const auto& line:lines)letters+=line.count;
-    return !active || (!Revealing() && readingFrames>=std::max(90,letters));
-}
 void CtrDialogue::Finish() {for(auto& line:lines)line.visible=line.count;}
 float CtrDialogue::Width(int index,float fullWidth) {
     if(!active || index<0 || index>=Capacity)return fullWidth;

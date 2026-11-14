@@ -23,5 +23,4 @@ bool CollectAtTop(int power,float y);
 void ReplayCollection(bool always);
 void EndReplayCollection();
 void ReplayOptions(unsigned flags);
-bool ReplayHasOptions();
 }

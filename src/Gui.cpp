@@ -693,18 +693,6 @@ ZunResult GuiImpl::RunMsg()
     {
         return ZUN_ERROR;
     }
-#ifdef __3DS__
-    enum class Action { None, Finish, Next };
-    const bool modernInput=(!g_GameManager.isInReplay && !g_GameManager.demoMode) || CtrSettings::ReplayHasOptions();
-    // Physical confirms are recorded as ENTER pulses; latched fire must not
-    // become a new confirm simply because a replay starts or dialogue opens.
-    const bool confirm=((g_CurFrameInput & ~g_LastFrameInput)&
-        (modernInput?TH_BUTTON_ENTER:TH_BUTTON_SELECTMENU))!=0;
-    Action action=confirm && CtrDialogue::Active() && this->msg.currentInstr->opcode!=MSG_OPCODE_MSGHALT?
-        (CtrDialogue::Revealing()?Action::Finish:Action::Next):Action::None;
-    bool fastForward=action!=Action::None;
-
-#endif
     if (this->msg.ignoreWaitCounter > 0)
     {
         this->msg.ignoreWaitCounter--;
@@ -713,28 +701,8 @@ ZunResult GuiImpl::RunMsg()
     {
         this->msg.timer.SetCurrent(this->msg.currentInstr->time);
     }
-    while (
-#ifdef __3DS__
-           fastForward ||
-#endif
-           (i32)(this->msg.timer.current >= this->msg.currentInstr->time))
+    while ((i32)(this->msg.timer.current >= this->msg.currentInstr->time))
     {
-#ifdef __3DS__
-        const int op=this->msg.currentInstr->opcode;
-        const bool paragraphBoundary=(op==MSG_OPCODE_TEXTDIALOGUE && this->msg.currentInstr->args.text.textLine==0) || op==MSG_OPCODE_MSGDELETE;
-        if(paragraphBoundary && CtrDialogue::Active()) {
-            if(action==Action::Finish) {CtrDialogue::Finish();goto SKIP_TIME_INCREMENT;}
-            if(action==Action::None && !(this->msg.dialogueSkippable && IS_PRESSED(TH_BUTTON_SKIP)) && !CtrDialogue::AutoAdvanceReady())
-                goto SKIP_TIME_INCREMENT;
-        }
-        // A paragraph skip must not accelerate results, scene changes or a
-        // script halt. Preserve the native presentation timeline at boundaries.
-        if(fastForward && (op==MSG_OPCODE_STAGERESULTS || op==MSG_OPCODE_STAGEEND || op==MSG_OPCODE_MSGHALT)) {
-            action=Action::None;fastForward=false;
-            if(this->msg.timer.current<this->msg.currentInstr->time)break;
-        }
-        if(fastForward)this->msg.timer.SetCurrent(this->msg.currentInstr->time);
-#endif
         switch (this->msg.currentInstr->opcode)
         {
         case MSG_OPCODE_MSGDELETE:
@@ -760,7 +728,6 @@ ZunResult GuiImpl::RunMsg()
         case MSG_OPCODE_TEXTDIALOGUE:
             args = &this->msg.currentInstr->args;
 #ifdef __3DS__
-            if(action==Action::Next && args->text.textLine==0) {action=Action::None;fastForward=false;}
             CtrDialogue::StartLine(args->text.textLine,args->text.text,this->msg.fontSize);
             if(args->text.textLine==0)CtrDecorations::DialogueSpeaker(args->text.textColor);
 #endif
@@ -788,25 +755,12 @@ ZunResult GuiImpl::RunMsg()
             this->msg.framesElapsedDuringPause = 0;
             break;
         case MSG_OPCODE_WAIT:
-#ifdef __3DS__
-            if(action==Action::Finish) {
-                CtrDialogue::Finish();goto SKIP_TIME_INCREMENT;
-            }
-            if(action==Action::Next)break;
-            if(confirm && !CtrDialogue::Active())break;
-            if(this->msg.dialogueSkippable && IS_PRESSED(TH_BUTTON_SKIP))CtrDialogue::Finish();
-            else if(CtrDialogue::Revealing())goto SKIP_TIME_INCREMENT;
-            else if(this->msg.framesElapsedDuringPause<this->msg.currentInstr->args.wait) {
-                ++this->msg.framesElapsedDuringPause;goto SKIP_TIME_INCREMENT;
-            }
-#else
             if (!this->msg.dialogueSkippable || !IS_PRESSED(TH_BUTTON_SKIP)) {
                 if (!WAS_PRESSED(TH_BUTTON_SHOOT) || this->msg.framesElapsedDuringPause < 8) {
                     if (this->msg.framesElapsedDuringPause >= this->msg.currentInstr->args.wait)break;
                     ++this->msg.framesElapsedDuringPause;goto SKIP_TIME_INCREMENT;
                 }
             }
-#endif
             break;
         case MSG_OPCODE_ANMINTERRUPT:
             args = &this->msg.currentInstr->args;
@@ -863,7 +817,7 @@ ZunResult GuiImpl::RunMsg()
             break;
         case MSG_OPCODE_STAGERESULTS:
 #ifdef __3DS__
-            CtrDialogue::Reset();action=Action::None;fastForward=false;
+            CtrDialogue::Reset();
             CtrDecorations::EndDialogue();
 #endif
             this->finishedStage = 1;

@@ -60,4 +60,3 @@ bool CtrSettings::CollectAtTop(int power,float y) {return y<128.f && (power>=128
 void CtrSettings::ReplayCollection(bool always) {replayCollection=true;replayAlways=always;replayOptions=-1;}
 void CtrSettings::EndReplayCollection() {replayCollection=false;replayOptions=-1;}
 void CtrSettings::ReplayOptions(unsigned flags) {ReplayCollection((flags&1)!=0);replayOptions=flags;}
-bool CtrSettings::ReplayHasOptions() {return replayOptions>=0;}

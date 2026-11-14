@@ -2354,7 +2354,7 @@ ZunResult MainMenu::RegisterChain(u32 isDemo)
     menu->chainDraw->arg = menu;
     g_Chain.AddToDrawChain(menu->chainDraw, TH_CHAIN_PRIO_DRAW_MAINMENU);
     menu->lastFrameTime = 0;
-    menu->stateTimer = 60;
+    menu->stateTimer = MenuDuration(60);
     menu->frameCountForRefreshRateCalc = 0;
     return ZUN_SUCCESS;
 }
