@@ -140,8 +140,8 @@ def fit(sprite, text, font_path, sizes, outlines=(0, .5, 1, 1.5), stretches=(1.0
     return dict(zip(('score', 'size', 'stretch', 'track', 'x', 'y', 'outline'), best))
 
 
-def render(glyph, outline, sums, sharp=True):
-    """Color a glyph mask from a measured color table. Returns a 4-bit RGBA image.
+def render(glyph, outline, sums, sharp=False):
+    """Color a glyph mask from a measured color table. Returns an RGBA image.
 
     sharp colors each pixel at its center and blends the two nearest distance
     buckets, which keeps the crisp highlight and outline rows of the originals.
@@ -178,8 +178,8 @@ def render(glyph, outline, sums, sharp=True):
         out = table[inverse.ravel()].reshape(height, SS, width, SS, 4).mean((1, 3))
     alpha = out[..., 3]
     rgb = np.where(alpha[..., None] > 1e-4, out[..., :3]/np.maximum(alpha[..., None], 1e-4), 0)
-    def quantize(v): return (np.clip(np.round(v/17), 0, 15)*17).astype(np.uint8)
-    return Image.fromarray(np.dstack([quantize(rgb), quantize(alpha*255)]), 'RGBA')
+    def channel(v): return np.clip(np.round(v), 0, 255).astype(np.uint8)
+    return Image.fromarray(np.dstack([channel(rgb), channel(alpha*255)]), 'RGBA')
 
 
 def redraw(sprite, original_text, text, font_path, sizes, max_width=None, align='left',

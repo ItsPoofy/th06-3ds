@@ -52,7 +52,7 @@ def glyphs(text, font_path, width, height, max_width, left=None):
 
 
 def styled(glyph):
-    """Apply the fill gradient, outline and glow, then reduce to 4-bit channels."""
+    """Apply the fill gradient, outline and glow."""
     height, width = glyph.shape[0]//SS, glyph.shape[1]//SS
     radius = round(OUTLINE*SS)
     y, x = np.mgrid[-radius:radius + 1, -radius:radius + 1]
@@ -72,8 +72,8 @@ def styled(glyph):
                      + halo[..., None]*glow_rgb)
     alpha = outer_cover + halo
     rgb = np.where(alpha[..., None] > 1e-4, premultiplied/np.maximum(alpha[..., None], 1e-4), 0)
-    def quantize(v): return (np.clip(np.round(v/17), 0, 15)*17).astype(np.uint8)
-    return Image.fromarray(np.dstack([quantize(rgb), quantize(alpha*255)]), 'RGBA')
+    def channel(v): return np.clip(np.round(v), 0, 255).astype(np.uint8)
+    return Image.fromarray(np.dstack([channel(rgb), channel(alpha*255)]), 'RGBA')
 
 
 def title(text, font_path, width, height, max_width, left=None):
@@ -87,8 +87,8 @@ def half_width(image):
     premultiplied = (pixels[..., :3]*alpha).reshape(pixels.shape[0], -1, 2, 3).mean(2)
     alpha = alpha.reshape(pixels.shape[0], -1, 2, 1).mean(2)
     rgb = np.where(alpha > 1e-4, premultiplied/np.maximum(alpha, 1e-4), 0)
-    def quantize(v): return (np.clip(np.round(v/17), 0, 15)*17).astype(np.uint8)
-    return Image.fromarray(np.dstack([quantize(rgb), quantize(alpha*255)]), 'RGBA')
+    def channel(v): return np.clip(np.round(v), 0, 255).astype(np.uint8)
+    return Image.fromarray(np.dstack([channel(rgb), channel(alpha*255)]), 'RGBA')
 
 
 def prepare(resources, font_path):
