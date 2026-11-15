@@ -24,11 +24,13 @@ int bonus=0,successes=0,attempts=0;
 int recordIndex=-1;
 bool capturing=false;
 
-void Glyph(int sx,int sy,int w,int h,float x,float y,float scale,ZunColor color) {
+void SetGlyphColor(ZunColor color) {
     AnmVm state{};state.flags.zWriteDisable=1;state.color=color;
     g_AnmManager->SetRenderStateForVm(&state);
     g_AnmManager->SetColorOp(COMPONENT_RGB,COLOR_OP_MODULATE);
     g_AnmManager->SetColorOp(COMPONENT_ALPHA,COLOR_OP_MODULATE);
+}
+void GlyphVertices(int sx,int sy,int w,int h,float x,float y,float scale) {
     VertexTex1Xyzrhw vertices[4]{};
     for(int i=0;i<4;i++) {
         vertices[i].position=ZunVec4(x+(i&1?w*scale:0),y+(i>=2?h*scale:0),.495f,1);
@@ -36,16 +38,28 @@ void Glyph(int sx,int sy,int w,int h,float x,float y,float scale,ZunColor color)
     }
     g_AnmManager->AddSpriteToDrawBuffer(vertices);
 }
+void Glyph(int sx,int sy,int w,int h,float x,float y,float scale,ZunColor color) {
+    SetGlyphColor(color);
+    GlyphVertices(sx,sy,w,h,x,y,scale);
+}
 float NumberWidth(const char* text) {
     float width=0;for(const char* c=text;*c;c++)width+=(*c=='/'?7:16)*CtrBossSpellLayout::InfoScale;
     return width+6*CtrBossSpellLayout::InfoScale;
 }
-void Number(const char* text,float x,float y,ZunColor color) {
+void NumberGlyphs(const char* text,float x,float y) {
     for(const char* c=text;*c;c++) {
         const int index=*c=='/'?11:*c-'0';
-        if(index>=0 && index<12)Glyph(index*22,56,22,34,x,y,CtrBossSpellLayout::InfoScale,color);
+        if(index>=0 && index<12)GlyphVertices(index*22,56,22,34,x,y,CtrBossSpellLayout::InfoScale);
         x+=(*c=='/'?7:16)*CtrBossSpellLayout::InfoScale;
     }
+}
+void Number(const char* text,float x,float y,ZunColor color) {
+    constexpr float outline=.65f;
+    SetGlyphColor(color&0xff000000);
+    for(int row=-1;row<=1;row++)for(int column=-1;column<=1;column++)
+        if(row || column)NumberGlyphs(text,x+column*outline,y+row*outline);
+    SetGlyphColor(color);
+    NumberGlyphs(text,x,y);
 }
 void ReadHistory() {
     if(recordIndex>=0 && recordIndex<int(std::size(g_GameManager.catk))) {

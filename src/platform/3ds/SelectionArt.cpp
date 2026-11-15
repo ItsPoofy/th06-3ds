@@ -8,12 +8,15 @@
 #include "../../../assets/selection_labels.hpp"
 #include "../../../assets/selection_en_labels.hpp"
 #include <algorithm>
+#include <array>
+#include <cstdio>
 #include <cstring>
 #include <string_view>
 #include <unordered_map>
 namespace {
 CtrAssets::PackedTexture atlas;
 bool atlasEnglish=false;
+std::array<Tex3DS_SubTexture,10> digits;
 const CtrSelectionAssets::Label* Find(const char* name) {
     static const auto labels=[] {
         std::unordered_map<std::string_view,const CtrSelectionAssets::Label*> result;
@@ -30,7 +33,20 @@ const CtrSelectionAssets::Label* Find(const char* name) {
     const auto found=lookup.find(name);return found==lookup.end()?nullptr:found->second;
 }
 }
-bool CtrSelectionArt::Initialize() {Find("hud-digit0");atlasEnglish=CtrSettings::English();return atlas.Load(CtrContent::Path("ui","selection-atlas.bin").c_str());}
+bool CtrSelectionArt::Initialize() {
+    atlasEnglish=CtrSettings::English();
+    if(!atlas.Load(CtrContent::Path("ui","selection-atlas.bin").c_str()))return false;
+    for(unsigned digit=0;digit<digits.size();digit++) {
+        char name[16];std::snprintf(name,sizeof(name),"hud-digit%u",digit);
+        const auto& label=*Find(name);
+        digits[digit]={u16(label.w),u16(label.h),float(label.x)/atlas.gpu.width,1-float(label.y)/atlas.gpu.height,
+            float(label.x+label.w)/atlas.gpu.width,1-float(label.y+label.h)/atlas.gpu.height};
+    }
+    return true;
+}
+void CtrSelectionArt::DrawDigit(unsigned digit,float x,float y) {
+    if(atlas.ready)CtrNative::DrawImage({&atlas.gpu,&digits[digit]},x,y);
+}
 void CtrSelectionArt::RefreshLanguage() {
     if(atlasEnglish==CtrSettings::English())return;
     if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();

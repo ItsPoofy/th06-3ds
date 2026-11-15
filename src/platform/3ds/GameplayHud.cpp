@@ -29,8 +29,7 @@ void Row(C3D_Tex& scene,int sourceY,float x,float y,float scale=.70f) {
 void Number(unsigned value,float x,float y,bool score=false) {
     char text[16];snprintf(text,sizeof(text),score?"%09u":"%u",value);
     for(const char* digit=text;*digit;digit++,x+=14) {
-        char label[24];snprintf(label,sizeof(label),"hud-digit%c",*digit);
-        CtrSelectionArt::Draw(label,x,y);
+        CtrSelectionArt::DrawDigit(*digit-'0',x,y);
     }
 }
 void Stat(const char* label,unsigned value,float x,float y,bool score=false) {

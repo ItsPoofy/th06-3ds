@@ -23,14 +23,20 @@
 #endif
 
 static TTF_Font *g_Font;
-static bool originalFont=false;
+static SDL_Surface* CondenseSpellLine(SDL_Surface* source,int width) {
+    if(!source || source->w<=width)return source;
+    auto* fitted=SDL_CreateRGBSurfaceWithFormat(0,width,source->h,32,source->format->format);
+    if(!fitted)return source;
+    if(SDL_SoftStretchLinear(source,nullptr,fitted,nullptr)<0) {
+        SDL_FreeSurface(fitted);return source;
+    }
+    SDL_FreeSurface(source);return fitted;
+}
 static std::array<std::vector<u8>,3> fontData;
 static std::map<std::pair<int,int>,TTF_Font*> fonts;
 static TTF_Font* FontAtSize(int size,TextHelper::FontRole role=TextHelper::FontRole::Standard) {
 #ifdef __3DS__
-    // This is the original MS Gothic text path. Bitmap and menu typefaces
-    // are separate assets and retain their own fonts.
-    const bool english=CtrSettings::English() && !fontData[1].empty() && !originalFont;
+    const bool english=CtrSettings::English() && !fontData[1].empty();
 #else
     const bool english=false;
 #endif
@@ -256,28 +262,31 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
     g_Font=FontAtSize(fontHeight*2,role);
     if(!g_Font) return;
 #ifdef __3DS__
-    const bool english=CtrSettings::English() && !fontData[1].empty() && !originalFont;
+    const bool english=CtrSettings::English() && !fontData[1].empty();
     const bool twoRows=balanceSeparator && (CtrSettings::English() || forceWrap) &&
-        !(english && role==FontRole::MusicTitle);
+        role!=FontRole::SpellTitle && !(english && role==FontRole::MusicTitle);
 #else
     const bool english=false;
     const bool twoRows=balanceSeparator;
 #endif
+    const bool fittedLine=english;
+    const int lineHeight=english?(fontHeight*8+2)/3:fontHeight*2-2;
     SDL_Color sdlTextColor{Uint8(textColor&0xff),Uint8((textColor>>8)&0xff),Uint8((textColor>>16)&0xff),255};
     // Fit at the largest caption draw scale, preserving the same font in both layouts.
     const int captionWidth=2*wrapWidth-(outlined?8:0);
     SDL_Surface* regularText=balanceSeparator?StageCaptionSurface::Render(g_Font,convertedText,sdlTextColor,twoRows,captionWidth,centered,rightAligned):
-        (english?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlTextColor,(fontHeight*8+2)/3):
+        (fittedLine?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlTextColor,lineHeight):
             TTF_RenderUTF8_Blended(g_Font,convertedText,sdlTextColor));
+    if(role==FontRole::SpellTitle)regularText=CondenseSpellLine(regularText,captionWidth);
     if(outlined && regularText) {
         auto* outline=StageCaptionSurface::WhiteOutlined(regularText,4);
         if(outline) {SDL_FreeSurface(regularText);regularText=outline;}
     }
     const int captionHeight=regularText?regularText->h:32;
-    const int copyHeight=balanceSeparator || english?(captionHeight+1)/2:16;
+    const int copyHeight=balanceSeparator || fittedLine?(captionHeight+1)/2:16;
     if(renderedHeight)*renderedHeight=copyHeight;
     const int scratchWidth=std::max<i32>(2*spriteWidth,GAME_WINDOW_WIDTH);
-    const int scratchHeight=std::max<i32>(balanceSeparator || english?captionHeight+6:2*fontHeight+6,TEXT_BUFFER_HEIGHT);
+    const int scratchHeight=std::max<i32>(balanceSeparator || fittedLine?captionHeight+6:2*fontHeight+6,TEXT_BUFFER_HEIGHT);
     if(!g_TextBufferSurface || g_TextBufferSurface->w<scratchWidth || g_TextBufferSurface->h<scratchHeight) {
         SDL_FreeSurface(g_TextBufferSurface);
         g_TextBufferSurface=SDL_CreateRGBSurfaceWithFormat(0,scratchWidth,scratchHeight,32,SDL_PIXELFORMAT_RGBA32);
@@ -288,7 +297,7 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
     finalCopySrc.y = 0;
     finalCopySrc.w = spriteWidth * 2 - 2;
     finalCopySrc.h = fontHeight * 2 - 2;
-    if(balanceSeparator || english) {finalCopySrc.w=spriteWidth*2;finalCopySrc.h=captionHeight;}
+    if(balanceSeparator || fittedLine) {finalCopySrc.w=spriteWidth*2;finalCopySrc.h=captionHeight;}
 
     SDL_FillRect(g_TextBufferSurface, nullptr, 0);
 
@@ -303,7 +312,8 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
         sdlShadowColor.g = (shadowColor >> 8) & 0xFF;
         sdlShadowColor.r = shadowColor & 0xFF;
 
-        shadowText = balanceSeparator?StageCaptionSurface::Render(g_Font,convertedText,sdlShadowColor,twoRows,captionWidth,centered,rightAligned):(english?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlShadowColor,(fontHeight*8+2)/3):TTF_RenderUTF8_Blended(g_Font, convertedText, sdlShadowColor));
+        shadowText = balanceSeparator?StageCaptionSurface::Render(g_Font,convertedText,sdlShadowColor,twoRows,captionWidth,centered,rightAligned):(fittedLine?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlShadowColor,lineHeight):TTF_RenderUTF8_Blended(g_Font, convertedText, sdlShadowColor));
+        if(role==FontRole::SpellTitle)shadowText=CondenseSpellLine(shadowText,captionWidth);
 
         if (shadowText != NULL)
         {
@@ -374,11 +384,6 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
     SDL_FreeSurface(textureSurface);
 
     return;
-}
-
-void TextHelper::SetOriginalFont(bool enabled)
-{
-    originalFont=enabled;
 }
 
 // Extended to free all globals for text helper

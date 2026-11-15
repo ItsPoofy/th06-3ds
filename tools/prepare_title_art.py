@@ -97,7 +97,7 @@ def prepare(resources, font_path):
     mask = Image.new('L', overlay.size)
     # MusicRoom draws the English title at twice its width. The text starts 7 px
     # in, like 恋々音樂館.
-    overlay.paste(half_width(title('Lovely Music Room', font_path, 512, 64, 500, left=7)), (0, 0))
+    overlay.paste(half_width(title('Music Room', font_path, 512, 64, 500, left=7)), (0, 0))
     ImageDraw.Draw(mask).rectangle((0, 0, 255, 63), fill=255)
     overlay.save(resources/'music00.anm.bin.overlay.png')
     mask.save(resources/'music00.anm.bin.mask.png')

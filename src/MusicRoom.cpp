@@ -15,9 +15,11 @@
 #include "platform/3ds/MusicDescription.hpp"
 #include "platform/3ds/NdspAudio.hpp"
 #include "platform/3ds/Settings.hpp"
+#include "platform/3ds/ContentAssets.hpp"
 #include "platform/3ds/Touch.hpp"
 #endif
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 
 namespace {
@@ -26,7 +28,7 @@ namespace {
 constexpr int VisibleRows=14;
 constexpr float ListScale=1.4f;
 constexpr float ListTop=106,ListSpacing=25;
-constexpr float ListArrowX=8,ListNumberX=32,ListTitleX=98;
+constexpr float ListArrowX=8,ListTitleX=98;
 constexpr float DescriptionScale=1.2f;
 constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
 constexpr float DescriptionRowWidth=(640-2*DescriptionLeft)/DescriptionScale;
@@ -263,7 +265,6 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
         }
 
 #ifdef __3DS__
-        musicRoom->titleSprites[i].pos.x = ListTitleX;
         musicRoom->titleSprites[i].pos.y = ListTop + (i - musicRoom->listingOffset) * ListSpacing;
         musicRoom->titleSprites[i].pos.z = 0.0f;
         g_AnmManager->DrawNoRotation(&musicRoom->titleSprites[i]);
@@ -275,8 +276,6 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
             textPos.x = ListArrowX;
             g_AsciiManager.AddString(&textPos, rightArrowStr);
         }
-        textPos.x = ListNumberX;
-        g_AsciiManager.AddFormatText(&textPos, "%2d.", i + 1);
         g_AsciiManager.scale = ZunVec2(1.0f, 1.0f);
 #else
         musicRoom->titleSprites[i].pos.x = 93.0f;
@@ -493,20 +492,28 @@ finishMusiccmtRead:
         std::free(fileBase);return ZUN_ERROR;
     }
 
-#ifdef __3DS__
-    // English titles and comments use the Japanese MS Gothic text style.
-    TextHelper::SetOriginalFont(true);
-#endif
     for (i = 0; i < musicRoom->numDescriptors; i++)
     {
         g_AnmManager->InitializeAndSetSprite(&musicRoom->titleSprites[i], ANM_OFFSET_MUSIC01 + i);
+#ifdef __3DS__
+        char prefix[16];
+        std::snprintf(prefix,sizeof(prefix),"%2d. ",i+1);
+        const auto& vm=musicRoom->titleSprites[i];
+        const int fontHeight=vm.fontWidth>0?vm.fontWidth:15;
+        const float numberWidth=TextHelper::Measure(prefix,fontHeight)-2;
+        g_AnmManager->DrawVmTextFmt(&musicRoom->titleSprites[i], COLOR_MUSIC_ROOM_SONG_TITLE_TEXT,
+                                    COLOR_MUSIC_ROOM_SONG_TITLE_SHADOW, "%s%s", prefix,
+                                    CtrContent::Translate(musicRoom->trackDescriptors[i].title));
+#else
         g_AnmManager->DrawVmTextFmt(&musicRoom->titleSprites[i], COLOR_MUSIC_ROOM_SONG_TITLE_TEXT,
                                     COLOR_MUSIC_ROOM_SONG_TITLE_SHADOW, "%s", musicRoom->trackDescriptors[i].title);
+#endif
         musicRoom->titleSprites[i].pos.x = 93.0f;
         musicRoom->titleSprites[i].pos.y = 104.0f + ((i + 1) * 18) - 20.0f;
         musicRoom->titleSprites[i].pos.z = 0.0f;
         musicRoom->titleSprites[i].flags.anchor = AnmVmAnchor_TopLeft;
 #ifdef __3DS__
+        musicRoom->titleSprites[i].pos.x=ListTitleX-numberWidth*ListScale;
         musicRoom->titleSprites[i].scaleX = ListScale;
         musicRoom->titleSprites[i].scaleY = ListScale;
 #endif
@@ -515,9 +522,6 @@ finishMusiccmtRead:
     for(i=0;i<ARRAY_SIZE_SIGNED(musicRoom->descriptionSprites);i++)
         g_AnmManager->InitializeAndSetSprite(&musicRoom->descriptionSprites[i],ANM_SCRIPT_TEXT_MUSIC_ROOM_DESC+i);
     musicRoom->descriptionPage=0;musicRoom->DisplayDescription();
-#ifdef __3DS__
-    TextHelper::SetOriginalFont(false);
-#endif
 
     std::free(fileBase);
 
@@ -529,7 +533,6 @@ void MusicRoom::DisplayDescription() {
     int lines=0;
     for(int row=0;row<32;row++)if(track.description[row][0])lines=row+1;
 #ifdef __3DS__
-    TextHelper::SetOriginalFont(true);
     const auto& first=this->descriptionSprites[0];
     const int fontHeight=first.fontWidth<=0?15:first.fontWidth;
     CtrMusicDescription::Row rows[MaxDescriptionRows];
@@ -546,7 +549,6 @@ void MusicRoom::DisplayDescription() {
         sprite.pos=ZunVec3(DescriptionLeft+part.x*DescriptionScale,DescriptionTop+(i/2)*DescriptionSpacing,0.f);
         sprite.flags.anchor=AnmVmAnchor_TopLeft;
     }
-    TextHelper::SetOriginalFont(false);
 #else
     this->descriptionPages=std::max(1,(lines+7)/8);
     for(int i=0;i<ARRAY_SIZE_SIGNED(this->descriptionSprites);i++) {

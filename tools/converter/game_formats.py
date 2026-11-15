@@ -135,17 +135,18 @@ def ending(data, patch, font=None):
             index += 1
     return b''.join(result)
 
-def image_texture(assets, name):
+def image_texture(assets, name, *, scale=1):
     data = assets[name]
     fields = struct.unpack_from('<16I', data)
     width, height, fmt, offset, alpha_offset = fields[3], fields[4], fields[5], fields[7], fields[9]
     source = data[offset:].split(b'\0', 1)[0].decode('ascii').replace('\\', '/').rsplit('/', 1)[-1]
     if source.startswith('@'):
         return None
-    image = Image.open(io.BytesIO(assets[source])).convert('RGBA').resize((width, height), Image.Resampling.NEAREST)
+    size = (width * scale, height * scale)
+    image = Image.open(io.BytesIO(assets[source])).convert('RGBA').resize(size, Image.Resampling.LANCZOS)
     if alpha_offset:
         alpha_name = data[alpha_offset:].split(b'\0', 1)[0].decode('ascii').replace('\\', '/').rsplit('/', 1)[-1]
-        image.putalpha(Image.open(io.BytesIO(assets[alpha_name])).convert('RGB').getchannel('R').resize(image.size, Image.Resampling.NEAREST))
+        image.putalpha(Image.open(io.BytesIO(assets[alpha_name])).convert('RGB').getchannel('R').resize(image.size, Image.Resampling.LANCZOS))
     elif fmt in (3, 4):
         image.putalpha(255)
     if fmt == 5:

@@ -15,6 +15,38 @@ int32_t mixed[Chunk*2]; // Single callback owner; keep off NDSP's 4 KiB stack.
 int Sample(const Effect& effect,unsigned frame,unsigned channel) {
  return frame<effect.frames?effect.pcm[frame*effect.channels+channel]:0;
 }
+void MixVoice(const Effect& effect,Voice& voice,unsigned count) {
+ const unsigned length=std::min(count,effect.frames-voice.position);
+ const unsigned rampFrames=std::min(length,voice.ramp);
+ for(unsigned frame=0;frame<rampFrames;frame++) {
+  int left=Sample(effect,voice.position,0);
+  int right=effect.channels==1?left:Sample(effect,voice.position,1);
+  const int oldLeft=Sample(effect,voice.tail,0);
+  const int oldRight=effect.channels==1?oldLeft:Sample(effect,voice.tail,1);
+  left=(left*int(RampFrames-voice.ramp)+oldLeft*int(voice.ramp))/int(RampFrames);
+  right=(right*int(RampFrames-voice.ramp)+oldRight*int(voice.ramp))/int(RampFrames);
+  ++voice.tail;--voice.ramp;
+  mixed[frame*2]+=(left*effect.gain)>>15;
+  mixed[frame*2+1]+=(right*effect.gain)>>15;
+  ++voice.position;
+ }
+ // The remaining range is inside this sample and has no restart crossfade.
+ const int16_t* pcm=effect.pcm+voice.position*effect.channels;
+ if(effect.channels==1) {
+  for(unsigned frame=rampFrames;frame<length;frame++) {
+   const int value=(*pcm++*effect.gain)>>15;
+   mixed[frame*2]+=value;mixed[frame*2+1]+=value;
+  }
+ } else {
+  for(unsigned frame=rampFrames;frame<length;frame++) {
+   mixed[frame*2]+=(int(pcm[0])*effect.gain)>>15;
+   mixed[frame*2+1]+=(int(pcm[1])*effect.gain)>>15;
+   pcm+=2;
+  }
+ }
+ voice.position+=length-rampFrames;
+ if(voice.position==effect.frames)voice.playing=false;
+}
 }
 
 void CtrSfxMixer::PreparePcm(std::vector<int16_t>& pcm,unsigned rate,unsigned channels) {
@@ -72,26 +104,10 @@ void CtrSfxMixer::Render(int16_t* stereo,unsigned frames,int volume) {
  // reducing volume as more voices join. Storage is fixed and never allocates.
  for(unsigned offset=0;offset<frames;offset+=Chunk) {
   const unsigned count=std::min(Chunk,frames-offset);
-  std::fill(std::begin(mixed),std::end(mixed),0);
+  std::fill_n(mixed,count*2,0);
   for(unsigned id=0;id<EffectCount;id++) {
    auto& voice=voices[id];if(!voice.playing)continue;
-   const auto& effect=effects[id];
-   const unsigned length=std::min(count,effect.frames-voice.position);
-   for(unsigned frame=0;frame<length;frame++) {
-    int left=Sample(effect,voice.position,0);
-    int right=effect.channels==1?left:Sample(effect,voice.position,1);
-    if(voice.ramp) {
-     const int oldLeft=Sample(effect,voice.tail,0);
-     const int oldRight=effect.channels==1?oldLeft:Sample(effect,voice.tail,1);
-     left=(left*int(RampFrames-voice.ramp)+oldLeft*int(voice.ramp))/int(RampFrames);
-     right=(right*int(RampFrames-voice.ramp)+oldRight*int(voice.ramp))/int(RampFrames);
-     ++voice.tail;--voice.ramp;
-    }
-    mixed[frame*2]+=(left*effect.gain)>>15;
-    mixed[frame*2+1]+=(right*effect.gain)>>15;
-    ++voice.position;
-   }
-   if(voice.position==effect.frames)voice.playing=false;
+   MixVoice(effects[id],voice,count);
   }
   for(unsigned sample=0;sample<count*2;sample++) {
    const int value=mixed[sample]*volume/100;

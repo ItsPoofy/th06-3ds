@@ -9,11 +9,12 @@ inline void FinishImage(bool drawn,bool additive=false,bool subtractAlpha=false)
         C3D_TexEnvFunc(env,C3D_Alpha,subtractAlpha?GPU_SUBTRACT:GPU_MODULATE);
         for(int i=1;i<5;i++)C3D_TexEnvInit(C3D_GetTexEnv(i));
         C2D_Flush();
+        C2D_Prepare();
     }
     C2D_SetTintMode(C2D_TintSolid);
 }
-// Ordinary opacity changes stay in citro2d's batch. Colored, additive and
-// subtractive draws need the explicit native texture-environment expression.
+// Citro2D batches color and opacity through vertex tint. Custom additive and
+// subtractive expressions must submit their geometry before restoring state.
 inline void DrawImage(C2D_Image image,float x,float y,unsigned color=0xffffffff,float sx=1,float sy=1,bool additive=false) {
     // Opaque, untinted atlas images can share citro2d's ordinary batch. Most
     // HUD labels, digits and stars take this path instead of flushing per glyph.
@@ -24,9 +25,12 @@ inline void DrawImage(C2D_Image image,float x,float y,unsigned color=0xffffffff,
         C2D_SetTintMode(C2D_TintSolid);C2D_ImageTint tint;C2D_PlainImageTint(&tint,color,0);
         C2D_DrawImageAt(image,x,y,0,&tint,sx,sy);return;
     }
-    C2D_Flush();C2D_SetTintMode(C2D_TintMult);
+    if(additive)C2D_Flush();
+    C2D_SetTintMode(C2D_TintMult);
     C2D_ImageTint tint;C2D_PlainImageTint(&tint,color,1);
-    FinishImage(C2D_DrawImageAt(image,x,y,0,&tint,sx,sy),additive);
+    const bool drawn=C2D_DrawImageAt(image,x,y,0,&tint,sx,sy);
+    if(additive)FinishImage(drawn,true);
+    else C2D_SetTintMode(C2D_TintSolid);
 }
 inline void DrawTextGradient(C2D_Image image,float x,float y,unsigned color,float faceTop,float faceBottom,float sx=1,float sy=1) {
     // Share the normal glyph's antialiasing and opacity. Only its face tint
@@ -35,8 +39,7 @@ inline void DrawTextGradient(C2D_Image image,float x,float y,unsigned color,floa
     const float start=faceTop+(faceBottom-faceTop)*.18f;
     const float cuts[]={0,start,faceBottom,float(source.height)};
     const unsigned white=(color&0xff000000)|0xffffff;
-    C2D_Flush();C2D_SetTintMode(C2D_TintMult);
-    bool drawn=false;
+    C2D_SetTintMode(C2D_TintMult);
     for(int i=0;i<3;i++) {
         Tex3DS_SubTexture sub=source;
         sub.height=u16(cuts[i+1]-cuts[i]);
@@ -45,9 +48,9 @@ inline void DrawTextGradient(C2D_Image image,float x,float y,unsigned color,floa
         sub.bottom=source.top+(source.bottom-source.top)*cuts[i+1]/source.height;
         C2D_ImageTint tint;C2D_PlainImageTint(&tint,i==2?color:white,1);
         if(i==1)C2D_BottomImageTint(&tint,color,1);
-        drawn=C2D_DrawImageAt({image.tex,&sub},x,y+cuts[i]*sy,0,&tint,sx,sy*(cuts[i+1]-cuts[i])/sub.height) || drawn;
+        C2D_DrawImageAt({image.tex,&sub},x,y+cuts[i]*sy,0,&tint,sx,sy*(cuts[i+1]-cuts[i])/sub.height);
     }
-    FinishImage(drawn);
+    C2D_SetTintMode(C2D_TintSolid);
 }
 inline void DrawImageRotated(C2D_Image image,float centerX,float centerY,float angle,unsigned color,
                              float sx=1,float sy=1,bool subtractAlpha=false,bool additive=false) {
@@ -65,8 +68,11 @@ inline void DrawImageRotated(C2D_Image image,float centerX,float centerY,float a
         C2D_SetTintMode(C2D_TintSolid);C2D_ImageTint tint;C2D_PlainImageTint(&tint,color,0);
         C2D_DrawImageAtRotated(image,centerX,centerY,0,angle,&tint,sx,sy);return;
     }
-    C2D_Flush();C2D_SetTintMode(C2D_TintMult);
+    if(subtractAlpha)C2D_Flush();
+    C2D_SetTintMode(C2D_TintMult);
     C2D_ImageTint tint;C2D_PlainImageTint(&tint,color,1);
-    FinishImage(C2D_DrawImageAtRotated(image,centerX,centerY,0,angle,&tint,sx,sy),false,subtractAlpha);
+    const bool drawn=C2D_DrawImageAtRotated(image,centerX,centerY,0,angle,&tint,sx,sy);
+    if(subtractAlpha)FinishImage(drawn,false,true);
+    else C2D_SetTintMode(C2D_TintSolid);
 }
 }

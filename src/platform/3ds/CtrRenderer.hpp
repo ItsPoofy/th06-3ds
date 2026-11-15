@@ -2,6 +2,7 @@
 #include "graphics/GfxInterface.hpp"
 #include "MenuLayer.hpp"
 #include "SpriteVertex.hpp"
+#include "QuadBatch.hpp"
 #include <3ds.h>
 #include <citro3d.h>
 #include <memory>
@@ -19,9 +20,9 @@ public:
     void SetColorOp(TextureOpComponent c,ColorOp op) override { colorOps[c]=op; }
     void SetTextureFactor(ZunColor c) override { factor=c; }
     void SetTransformMatrix(TransformMatrix t,const ZunMatrix& m) override {
-        const bool changed=std::memcmp(&matrices[t],&m,sizeof(m))!=0;
-        if(t==MATRIX_PROJECTION && changed) fogDirty=true;
-        if(changed) { if(t==MATRIX_TEXTURE)textureMatrixDirty=true;else clipMatrixDirty=true; }
+        if(std::memcmp(&matrices[t],&m,sizeof(m))==0)return;
+        if(t==MATRIX_PROJECTION) fogDirty=true;
+        if(t==MATRIX_TEXTURE)textureMatrixDirty=true;else clipMatrixDirty=true;
         matrices[t]=m;
     }
     void SetTextureFilter() override;
@@ -44,6 +45,7 @@ public:
     void SetTextureSubImage(i32 x,i32 y,i32 w,i32 h,const void* data) override;
     void ReadPixels(i32 x,i32 y,i32 w,i32 h,const void* p) override;
     void Draw(PrimitiveType t,i32 first,i32 count) override;
+    void DrawSpriteQuads(i32 count);
     CtrGraphics::SpriteVertex* ReserveSpriteVertices(u32 count);
     void SwapBuffers() override;
     GfxTextureHandle LoadPreparedTexture(const char* path,u32& width,u32& height);
@@ -76,6 +78,7 @@ private:
     bool Start();
     void BeginFrame();
     void ApplyState();
+    void DrawVertices(PrimitiveType type,i32 first,i32 count,bool quads);
     void ApplyFog();
     void FlushVertices();
     void EndSegment();
@@ -95,6 +98,8 @@ private:
     DVLB_s* shader=nullptr;
     shaderProgram_s program{};
     Vertex* vertices=nullptr;
+    CtrGraphics::VertexBinding vertexBinding;
+    CtrGraphics::QuadBatch quadBatch;
     static constexpr u32 MaxVertices=131072;
     u32 vertexCursor=0;
     unsigned queuedCommands=0;

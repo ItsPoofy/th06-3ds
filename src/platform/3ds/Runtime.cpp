@@ -20,8 +20,8 @@ void OnLifecycle(APT_HookType type,void*) {
 }
 }
 extern "C" {
-    u32 __ctru_heap_size=32*1024*1024;
-    u32 __ctru_linear_heap_size=24*1024*1024;
+    u32 __ctru_heap_size=30*1024*1024;
+    u32 __ctru_linear_heap_size=26*1024*1024;
     u32 __stacksize__=512*1024;
 }
 void CtrRuntime::Log(const char* text) {

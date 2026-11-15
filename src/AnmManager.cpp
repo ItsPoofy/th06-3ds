@@ -640,21 +640,19 @@ void AnmManager::LoadSprite(u32 spriteIdx, const AnmLoadedSprite *sprite)
     this->sprites[spriteIdx] = *sprite;
     this->sprites[spriteIdx].spriteId = this->maybeLoadedSpriteCount++;
 
-    // OpenGL texel centers are located at half coordinates and EoSD uses whole number-aligned UVs
-    //   With linear filtering, a whole-numbered UV will pull equally from from the intended texel
-    //   and the next one, which can cause very obvious visual artifacts and gaps on the edges of sprites.
-    //   This prevents that, at the cost of flattening the sprite a tiny amount. If the option were added
-    //   to use nearest filtering for textures, this offsetting would be able to be disabled.
-    // Note that this is a quick and dirty fix and I have no idea if it breaks some assumption somewhere
-    //   else in the ANM code, but it causes orthographic draws to look visually correct, so ¯\_(ツ)_/¯
+#ifdef __3DS__
+    const float inset=sprite->sourceFileIndex==ANM_FILE_STAGEBG?0.f:.5f;
+#else
+    const float inset=.5f;
+#endif
     this->sprites[spriteIdx].uvStart.x =
-        (this->sprites[spriteIdx].startPixelInclusive.x + 0.5f) / this->sprites[spriteIdx].textureWidth;
+        (this->sprites[spriteIdx].startPixelInclusive.x + inset) / this->sprites[spriteIdx].textureWidth;
     this->sprites[spriteIdx].uvEnd.x =
-        (this->sprites[spriteIdx].endPixelInclusive.x - 0.5f) / this->sprites[spriteIdx].textureWidth;
+        (this->sprites[spriteIdx].endPixelInclusive.x - inset) / this->sprites[spriteIdx].textureWidth;
     this->sprites[spriteIdx].uvStart.y =
-        (this->sprites[spriteIdx].startPixelInclusive.y + 0.5f) / this->sprites[spriteIdx].textureHeight;
+        (this->sprites[spriteIdx].startPixelInclusive.y + inset) / this->sprites[spriteIdx].textureHeight;
     this->sprites[spriteIdx].uvEnd.y =
-        (this->sprites[spriteIdx].endPixelInclusive.y - 0.5f) / this->sprites[spriteIdx].textureHeight;
+        (this->sprites[spriteIdx].endPixelInclusive.y - inset) / this->sprites[spriteIdx].textureHeight;
 
     this->sprites[spriteIdx].widthPx =
         this->sprites[spriteIdx].endPixelInclusive.x - this->sprites[spriteIdx].startPixelInclusive.x;
@@ -1002,33 +1000,27 @@ void AnmManager::FlushVertexBuffer()
     this->SetAttributePointer(VERTEX_ARRAY_TEX_COORD, sizeof(BatchedVertex), &vertexBufferStartPtr->textureUV);
     this->UpdateDirtyStates();
 
+#ifdef __3DS__
+    static_cast<CtrRenderer*>(g_GfxBackend)->DrawSpriteQuads(spritesToDraw);
+#else
     g_GfxBackend->Draw(PRIM_TRIANGLES, 0, spritesToDraw * 6);
+#endif
 
     this->ClearVertexBuffer();
     flushesThisFrame++;
 }
 
-/* This function copies 4 vertices creating a quad into 6 vertices
- * (2 triangles) for rendering.
- */
+// Append a quad. Desktop backends expand its corners into two triangles.
 
 ZunResult AnmManager::AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices)
 {
 #ifdef __3DS__
-    auto* allocation=static_cast<CtrRenderer*>(g_GfxBackend)->ReserveSpriteVertices(6);
+    auto* allocation=static_cast<CtrRenderer*>(g_GfxBackend)->ReserveSpriteVertices(4);
     if(!allocation)return ZUN_ERROR;
     if(this->spritesToDraw && allocation!=this->vertexBufferEndPtr)this->FlushVertexBuffer();
     if(!this->spritesToDraw)this->vertexBufferStartPtr=this->vertexBufferEndPtr=allocation;
-    const auto color=this->dirtytTextureFactor;
-    const u32 rgba=(color&0xff00ff00u)|((color&255)<<16)|((color>>16)&255);
-    // Convert each corner once. The two triangles share corners 1 and 2.
-    BatchedVertex corners[4];
-    for(int i=0;i<4;i++) {
-        const auto& in=vertices[i];
-        corners[i]={ZunVec3(in.position.x,in.position.y,in.position.z),in.textureUV,rgba};
-    }
-    constexpr int indices[]={0,1,2,1,2,3};
-    for(int i=0;i<6;i++)this->vertexBufferEndPtr[i]=corners[indices[i]];
+    CtrGraphics::PackQuad(this->vertexBufferEndPtr,vertices,this->dirtytTextureFactor);
+    this->vertexBufferEndPtr+=4;
 #else
     if(this->vertexBufferEndPtr+6>this->vertexBuffer+0x18000)this->FlushVertexBuffer();
     this->vertexBufferEndPtr[0] = vertices[0];
@@ -1037,9 +1029,9 @@ ZunResult AnmManager::AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices)
     this->vertexBufferEndPtr[3] = vertices[1];
     this->vertexBufferEndPtr[4] = vertices[2];
     this->vertexBufferEndPtr[5] = vertices[3];
+    this->vertexBufferEndPtr+=6;
 #endif
 
-    this->vertexBufferEndPtr += 6;
     this->spritesToDraw++;
 
     return ZUN_SUCCESS;
@@ -1291,9 +1283,14 @@ ZunResult AnmManager::Draw3(const AnmVm *vm)
     }
     else
     {
+#ifdef __3DS__
+        CtrSpriteTransform::TransformQuad(worldTransformMatrix,this->vertexBufferContents[3].position,
+                                        g_PrimitivesToDrawVertexBuf);
+#else
         for (int i = 0; i < 4; i++)
             g_PrimitivesToDrawVertexBuf[i].position =
                 ZunVec4(worldTransformMatrix * this->vertexBufferContents[i].position, 1.0f);
+#endif
 
         g_PrimitivesToDrawVertexBuf[0].textureUV.x = g_PrimitivesToDrawVertexBuf[2].textureUV.x =
             vm->sprite->uvStart.x + vm->uvScrollPos.x;
@@ -1407,9 +1404,14 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
     }
     else
     {
+#ifdef __3DS__
+        CtrSpriteTransform::TransformQuad(worldTransformMatrix,this->vertexBufferContents[3].position,
+                                        g_PrimitivesToDrawVertexBuf);
+#else
         for (int i = 0; i < 4; i++)
             g_PrimitivesToDrawVertexBuf[i].position =
                 ZunVec4(worldTransformMatrix * this->vertexBufferContents[i].position, 1.0f);
+#endif
 
         g_PrimitivesToDrawVertexBuf[0].textureUV.x = g_PrimitivesToDrawVertexBuf[2].textureUV.x =
             vm->sprite->uvStart.x + vm->uvScrollPos.x;
@@ -1932,11 +1934,17 @@ ZunResult AnmManager::LoadSurface(i32 surfaceIdx, const char *path)
     }
 
 #ifdef __3DS__
+    static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
+    CtrPresentation::LoadSurface(surfaceIdx,path);
+    if(CtrPresentation::ReplacesSurface(surfaceIdx)) {
+        surfaces[surfaceIdx]=LoadToSurfaceWithFormat(path,SDL_PIXELFORMAT_RGB24,nullptr);
+        return surfaces[surfaceIdx]?ZUN_SUCCESS:ZUN_ERROR;
+    }
     u32 width,height;
     surfaceTextures[surfaceIdx]=static_cast<CtrRenderer*>(g_GfxBackend)->LoadPreparedTexture(path,width,height);
     if(surfaceTextures[surfaceIdx]) {
         surfaces[surfaceIdx]=SDL_CreateRGBSurfaceWithFormatFrom(nullptr,width,height,24,width*3,SDL_PIXELFORMAT_RGB24);
-        if(surfaces[surfaceIdx]) {CtrPresentation::LoadSurface(surfaceIdx,path);return ZUN_SUCCESS;}
+        if(surfaces[surfaceIdx])return ZUN_SUCCESS;
         g_GfxBackend->DeleteTexture(surfaceTextures[surfaceIdx]);surfaceTextures[surfaceIdx]=0;
     }
 #endif

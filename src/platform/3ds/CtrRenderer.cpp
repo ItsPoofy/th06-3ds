@@ -61,6 +61,7 @@ bool CtrRenderer::Start() {
     if(clipUniform<0 || textureUniform<0)return false;
     vertices=(Vertex*)linearAlloc(sizeof(Vertex)*MaxVertices);
     if(!vertices) {CtrRuntime::Log("Renderer: vertex allocation failed");return false;}
+    if(!quadBatch.Initialize()) {CtrRuntime::Log("Renderer: quad indices failed");return false;}
     if(!menuLayer.Initialize()) {CtrRuntime::Log("Renderer: menu layer failed");return false;}
     if(!CtrPresentation::Initialize()) {CtrRuntime::Log("Renderer: UI assets failed");return false;}
     if(!CtrBossHealthBar::Initialize(*this)) {CtrRuntime::Log("Renderer: boss bar texture failed");return false;}
@@ -99,6 +100,7 @@ CtrRenderer::~CtrRenderer() {
     textures.clear(); retired.clear();
     CtrPresentation::Shutdown();
     menuLayer.Shutdown();
+    quadBatch.Shutdown();
     if(vertices) linearFree(vertices);
     if(shader) { shaderProgramFree(&program); DVLB_Free(shader); }
     if(sceneTarget) C3D_RenderTargetDelete(sceneTarget);
@@ -125,8 +127,8 @@ void CtrRenderer::ApplyState() {
     AttrInfo_AddLoader(a,0,GPU_FLOAT,3);
     AttrInfo_AddLoader(a,1,GPU_FLOAT,2);
     AttrInfo_AddLoader(a,2,GPU_UNSIGNED_BYTE,4);
-    C3D_BufInfo* bi=C3D_GetBufInfo();BufInfo_Init(bi);
-    if(vertices)BufInfo_Add(bi,vertices,sizeof(Vertex),3,0x210);
+    vertexBinding.Invalidate();
+    if(vertices)vertexBinding.Bind(vertices);
     C3D_CullFace(GPU_CULL_NONE);
     C3D_DepthMap(true,-1,0);
     C3D_AlphaTest(true,GPU_GEQUAL,4);
@@ -342,6 +344,12 @@ CtrGraphics::SpriteVertex* CtrRenderer::ReserveSpriteVertices(u32 count) {
     return allocation;
 }
 void CtrRenderer::Draw(PrimitiveType type,i32 first,i32 count) {
+    DrawVertices(type,first,count,false);
+}
+void CtrRenderer::DrawSpriteQuads(i32 count) {
+    DrawVertices(PRIM_TRIANGLES,0,count*4,true);
+}
+void CtrRenderer::DrawVertices(PrimitiveType type,i32 first,i32 count,bool quads) {
     if(!frameOpen)BeginFrame();
     if(!frameOpen)return;
     if(count<3 || !pointers[VERTEX_ARRAY_POSITION]) return;
@@ -417,8 +425,12 @@ void CtrRenderer::Draw(PrimitiveType type,i32 first,i32 count) {
     applied.depthTest=depthTest;applied.depthFunc=depthFunc;applied.depthMask=depthMask;
     applied.blend=blend;applied.textured=textured;applied.texture=texture;
     applied.colorOps[0]=colorOps[0];applied.colorOps[1]=colorOps[1];applied.valid=true;
-    C3D_DrawArrays(type==PRIM_TRIANGLES?GPU_TRIANGLES:GPU_TRIANGLE_STRIP,
-                  direct?u32(offset/sizeof(Vertex)):vertexCursor,count);
+    if(quads)quadBatch.Draw(direct?source:out,unsigned(count)/4,vertexBinding);
+    else {
+        vertexBinding.Bind(vertices);
+        C3D_DrawArrays(type==PRIM_TRIANGLES?GPU_TRIANGLES:GPU_TRIANGLE_STRIP,
+                      direct?u32(offset/sizeof(Vertex)):vertexCursor,count);
+    }
     if(!drawingMenuLayer)sceneFill={};
     if(!direct)vertexCursor+=count;
 }

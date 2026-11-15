@@ -18,6 +18,7 @@
 #include "CtrRenderer.hpp"
 #include "GameWindow.hpp"
 #include "NativeImage.hpp"
+#include "MenuBackdrop.hpp"
 #include "../../../assets/ui-font/ui_labels.hpp"
 #include <array>
 #include <cstdio>
@@ -62,12 +63,12 @@ struct Texture {
     }
 };
 Texture previousArtwork;int backgroundFrame=CtrMenuTiming::Frames;
-Texture artwork,mainBottom,creditsBottom,musicBottom,material,font,contentFont;
+Texture artwork,mainBottom,creditsBottom,material,font,contentFont;
 bool menuAssetsReady=false;
 bool EnsureMenuAssets() {
     if(menuAssetsReady)return true;
     menuAssetsReady=CtrPractice::Initialize() && mainBottom.Load("Bottom Screen Main Menu") && creditsBottom.Load("Bottom Screen Credits") &&
-        musicBottom.Load("Bottom Screen MusicResult") && CtrCharacterPortraits::Initialize();
+        CtrCharacterPortraits::Initialize();
     return menuAssetsReady;
 }
 std::string surfaceName,surfaceVariant;
@@ -129,13 +130,13 @@ bool CtrPresentation::RefreshMaterial() {
 void CtrPresentation::ReleaseMenuAssets() {
     if(!menuAssetsReady)return;
     C3D_FrameSync();
-    for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom,&musicBottom})t->Clear();
+    for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom})t->Clear();
     CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();
     surfaceName.clear();surfaceVariant.clear();menuAssetsReady=false;
 }
 void CtrPresentation::Shutdown() {
     CtrDecorations::Shutdown();CtrSelectionArt::Shutdown();CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrHud::Shutdown();
-    for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom,&musicBottom,&material,&font,&contentFont})t->Clear();
+    for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom,&material,&font,&contentFont})t->Clear();
     menuAssetsReady=false;surfaceName.clear();surfaceVariant.clear();
 }
 void CtrPresentation::BeginScene() {CtrSelection::BeginScene();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;}
@@ -148,11 +149,12 @@ void CtrPresentation::LoadSurface(int slot,const char* path) {
     auto name=CtrAssets::Normalize(path);name=name.substr(name.find_last_of('/')+1);
     name=name.substr(0,name.find_last_of('.'));
     const auto variant=CtrContent::Path("ui",(name+".bin").c_str());
-    if(name==surfaceName && variant==surfaceVariant)return;
+    if(artwork.ready && name==surfaceName && variant==surfaceVariant)return;
     previousArtwork.Clear();
     if(panel==Panel::Loading)artwork.Clear();else previousArtwork=artwork;
     artwork={};backgroundFrame=previousArtwork.ready?0:CtrMenuTiming::Frames;
-    surfaceName=name;surfaceVariant=variant;artwork.Load(name);
+    surfaceName.clear();surfaceVariant.clear();
+    if(artwork.Load(name)) {surfaceName=name;surfaceVariant=variant;}
 }
 void CtrPresentation::ReleaseSurface(int slot) {
     if(slot!=0 || (!artwork.ready && !previousArtwork.ready))return;
@@ -245,6 +247,9 @@ void CtrPresentation::CaptureMenu(const MainMenu& menu) {
 
 }
 void CtrPresentation::DrawBackground(C3D_RenderTarget* top,C3D_RenderTarget* bottom,bool gameplay) {
+    const bool replayMenu=g_Supervisor.wantedState==SUPERVISOR_STATE_MAINMENU &&
+        (g_MainMenu.gameState==STATE_REPLAY_ANIM || g_MainMenu.gameState==STATE_REPLAY_SELECT ||
+         g_MainMenu.gameState==STATE_REPLAY_UNLOAD);
     C2D_SceneBegin(top);
     if(gameplay)material.Draw();else if(artwork.ready) {
         artwork.DrawArtwork();
@@ -259,7 +264,7 @@ void CtrPresentation::DrawBackground(C3D_RenderTarget* top,C3D_RenderTarget* bot
     else if(surfaceName=="th06logo")C2D_DrawRectSolid(0,0,0,320,240,0xffffffff);
     else if(panel==Panel::Selection)C2D_DrawRectSolid(0,0,0,320,240,0xff000000);
     else if(surfaceName.starts_with("end") || surfaceName=="staff00")creditsBottom.Draw();
-    else if(surfaceName=="music" || surfaceName=="result")musicBottom.Draw();
+    else if(replayMenu || surfaceName=="music" || surfaceName=="result")CtrMenuBackdrop::Draw();
     else {
         mainBottom.Draw();
         if(CtrSelectionReturn::From(STATE_DIFFICULTY_SELECT))

@@ -55,7 +55,7 @@ def prepare(source, root=None, resources=None):
             print(name, 'dynamic', w, h)
             continue
         image_name = image_name.replace('\\', '/').rsplit('/', 1)[-1]
-        image = images[image_name].resize((w, h), Image.Resampling.NEAREST)
+        image = images[image_name].resize((w, h), Image.Resampling.LANCZOS)
         # Preserve the original texture format's quantization and opacity.
         a = np.array(image)
         if fmt in (3, 4):
@@ -70,7 +70,7 @@ def prepare(source, root=None, resources=None):
         if alpha_offset:
             alpha_name = data[alpha_offset:].split(b'\0', 1)[0].decode('ascii')
             alpha_name = alpha_name.replace('\\', '/').rsplit('/', 1)[-1]
-            alpha = np.asarray(images[alpha_name].resize((w, h), Image.Resampling.NEAREST))[:, :, 0]
+            alpha = np.asarray(images[alpha_name].resize((w, h), Image.Resampling.LANCZOS))[:, :, 0]
             if fmt == 2:
                 alpha = (alpha >= 128) * 255
             elif fmt == 5:

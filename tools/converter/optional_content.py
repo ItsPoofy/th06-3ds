@@ -1,6 +1,7 @@
 """Developer utilities for preparing the bundled graphics and sound sets."""
 import io
 from pathlib import Path
+import re
 import shutil
 import struct
 import subprocess
@@ -13,6 +14,9 @@ from game_formats import image_texture
 from bundled_content import UI_SHEETS
 from sfx_pcm import encode as encode_sfx
 from graphics import gameplay_material
+
+# Each 256px stage or effect sheet uses 1 MiB of the 26 MiB linear heap.
+BACKGROUND_TEXTURE_SCALE = 2
 
 
 def retexture(source, assets, resources, report):
@@ -33,7 +37,8 @@ def retexture(source, assets, resources, report):
     for name in graphics:
         if not name.endswith('.anm'):
             continue
-        image = image_texture(graphics, name)
+        background = re.fullmatch(r'(?:stg\d+bg|eff\d+)\.anm', name)
+        image = image_texture(graphics, name, scale=BACKGROUND_TEXTURE_SCALE if background else 1)
         if image is None:
             continue
         player = 'reimu' if name.startswith(('player00.', 'face00')) else 'marisa' if name.startswith(('player01.', 'face01')) else None

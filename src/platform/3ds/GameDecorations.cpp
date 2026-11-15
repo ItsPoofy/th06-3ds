@@ -21,6 +21,7 @@
 namespace {
 int current=0,playerFace=0,fade=0,stage=0,playerCharacter=-1;
 int bombFace=-1,bossSpellFace=-1;
+int bossIdentity=-1;
 int dialogueSpeaker=-1;
 CtrPortraitBlend<6> playerBlend;
 CtrPortraitBlend<4> bossBlend;
@@ -95,20 +96,26 @@ void CtrDecorations::BeginStage(int nextStage) {
     if(continuing){playerBlend.Select(0);playerBlend.Tick();}else playerBlend.Reset();
     playerCharacter=g_GameManager.character;
     stage=nextStage;fade=0;current=playerFace=0;dialogue=mainBossSeen=miniboss=false;
-    bombFace=bossSpellFace=dialogueSpeaker=-1;bossBlend.Reset();
+    bombFace=bossSpellFace=dialogueSpeaker=bossIdentity=-1;bossBlend.Reset();
     releasingDialogue=false;faceOpacity[0]=faceOpacity[1]=battleOpacity;
     dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
     for(auto& vm:dialogueFaces)vm.flags.isVisible=0;
     CtrFocusEffect::BeginStage();
 }
-int CtrDecorations::CurrentBossName(){return BossName();}
-void CtrDecorations::SelectPortrait(int portrait) {if(portrait>=0 && portrait<4)current=portrait;}
+int CtrDecorations::CurrentBossName(){return bossIdentity>=0?bossIdentity:BossName();}
+void CtrDecorations::SelectPortrait(int portrait) {
+    if(portrait<0 || portrait>=4)return;
+    current=portrait;
+}
 void CtrDecorations::PlayerSpellcard(int sprite) {bombFace=sprite-ANM_SPRITE_FACE_CHARA_START;}
 void CtrDecorations::EndPlayerSpellcard() {bombFace=-1;}
 void CtrDecorations::BossSpellcard(int sprite) {if(sprite>=0 && sprite<4)bossSpellFace=sprite;}
 void CtrDecorations::EndBossSpellcard() {bossSpellFace=-1;}
 void CtrDecorations::BeginDialogue() {
     releasingDialogue=false;dialogueSpeaker=-1;dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
+    bossSpellFace=-1;
+    dialogue=true;
+    for(auto& portrait:dialogueFaces)portrait={};
 }
 void CtrDecorations::DialogueSpeaker(int side) {
     if(side<0 || side>1)return;
@@ -144,7 +151,11 @@ void CtrDecorations::UpdateBoss(bool present,int portrait) {
     const bool shown=present || CtrBossPresentation::Visible() || (dialogue && dialogueFaces[1].sprite && dialogueFaces[1].flags.isVisible);
     fade=std::clamp(fade+(shown?2:-3),0,60);
     playerBlend.Select(bombFace>=0?bombFace:playerFace);playerBlend.Tick();
-    bossBlend.Select(bossSpellFace>=0?bossSpellFace:current);bossBlend.Tick();
+    const int expression=bossSpellFace>=0?bossSpellFace:current;
+    const int identity=BossName(&g_AnmManager->sprites[ANM_SPRITE_FACE_STAGE_START+expression]);
+    if(identity!=bossIdentity) {bossBlend.Reset(expression);bossIdentity=identity;}
+    else bossBlend.Select(expression);
+    bossBlend.Tick();
 }
 void CtrDecorations::DrawPortrait(C3D_RenderTarget* top) {
     C2D_SceneBegin(top);
@@ -159,15 +170,16 @@ void CtrDecorations::DrawPortrait(C3D_RenderTarget* top) {
         char label[24];snprintf(label,sizeof(label),"Stage %d",std::clamp(int(g_GameManager.currentStage),1,7));
         CtrSelectionArt::Draw(label,400-CtrLayout::Left()*.5f,0,CtrSelectionArt::DifficultyColor(g_GameManager.difficulty),true,CtrTextSizes::StatusStage);
     }
-    if(fade<=0)return;
+    if(fade<=0 || (dialogue && !dialogueFaces[1].flags.isVisible))return;
     const unsigned alpha=faceOpacity[1]*fade/60;
     if(miniboss) {
         // Daiyousei and Koakuma have no dialogue portrait assets.
         if(CtrLayout::Single())Name(BossName(),true,255*fade/60);
     } else {
-        for(int i=0;i<4;i++)if(bossBlend.weights[i]>0)
+        for(int i=0;i<4;i++)if(bossBlend.weights[i]>0 &&
+            BossName(&g_AnmManager->sprites[ANM_SPRITE_FACE_STAGE_START+i])==bossIdentity)
             Portrait(ANM_SPRITE_FACE_STAGE_START+i,true,unsigned(alpha*bossBlend.weights[i]));
-        if(CtrLayout::Single())Name(BossName(&g_AnmManager->sprites[ANM_SPRITE_FACE_STAGE_START+current]),true,255*fade/60);
+        if(CtrLayout::Single())Name(CurrentBossName(),true,255*fade/60);
     }
     if(CtrLayout::Single())Counters(true,CtrBossCounters::Lives(),CtrBossCounters::Spells(),255*fade/60);
 }

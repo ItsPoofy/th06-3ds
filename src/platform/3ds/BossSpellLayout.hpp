@@ -6,6 +6,7 @@ namespace CtrBossSpellLayout {
 // The non-spell timer sits at the playfield's top edge. Spell timers retain
 // TH20's lower destination, with the same animated transition.
 inline constexpr float Right=416, Center=224, BandWidth=255, BandHeight=39;
+inline constexpr float NameRight=164,TitleLeft=NameRight+8;
 inline constexpr float TimerCenter=16+8, SpellTimerCenter=16+51;
 inline constexpr float InfoScale=.5f;
 // The information row occupies the space to the timer's right. Fixed field

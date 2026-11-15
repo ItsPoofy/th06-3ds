@@ -173,27 +173,25 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
         sprite.heightPx=source.ctrTextHeight;
         sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
     }
-    const float fit=std::min(base,(Right-Left-16)/std::max(1.f,width));
+    const bool player=source.activeSpriteIndex==ANM_OFFSET_TEXT+6;
+    const bool modern=ModernBossLayout();
+    const float available=modern && !player?CtrBossSpellLayout::Right-CtrBossSpellLayout::TitleLeft:Right-Left-16;
+    const float fitX=std::min(base,available/(std::max(1.f,width)*std::max(1.f,source.scaleX)));
     sprite.uvStart.x+=source.ctrTextStart/sprite.textureWidth;
     sprite.uvEnd.x=sprite.uvStart.x+width/sprite.textureWidth;sprite.widthPx=width;
     vm.sprite=&sprite;
-    vm.scaleX=source.scaleX*fit;vm.scaleY=source.scaleY*fit;
+    vm.scaleX=source.scaleX*fitX;vm.scaleY=source.scaleY*base;
     vm.flags.anchor=AnmVmAnchor_TopLeft;
-    const bool player=source.activeSpriteIndex==ANM_OFFSET_TEXT+6;
-    const bool modern=ModernBossLayout();
-    const auto& music=g_Gui.impl->songNameSprite;
-    const float musicHeight=music.sprite && !g_GameManager.demoMode?
-        (music.ctrTextHeight>0?music.ctrTextHeight:music.sprite->heightPx)*Scale()*(CtrSettings::English()?.9f:1.f):0;
     const auto placement=CtrSpellTitleLayout::Place(player,modern,source.pos.x,source.pos.y,
-        source.scaleX,source.ctrTextStart,width,sprite.heightPx,fit,musicHeight);
+        source.scaleX,width,sprite.heightPx,fitX,base);
     vm.pos.x=placement.x;vm.pos.y=placement.y;vm.posOffset=ZunVec3(0,0,0);
     if(!player)vm.color=(vm.color&0xff000000)|0xffffff;
     if(modern) {
         if(player)CtrSpellTitleDecoration::Underline(placement.edgeLeft,placement.edgeRight,
             vm.pos.y+sprite.heightPx*vm.scaleY+1,true,vm.color);
         else {
-            const float height=sprite.heightPx*fit;
-            CtrSpellTitleDecoration::BossButterflies(placement.edgeRight+(source.pos.x-256),
+            const float height=sprite.heightPx*base;
+            CtrSpellTitleDecoration::BossButterflies(placement.edgeRight,
                 vm.pos.y+(CtrBossSpellLayout::Baseline(height)-16)*source.scaleY,source.scaleX,vm.color);
         }
     } else if(background.sprite) {
@@ -210,6 +208,24 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
 }
 void CtrPlayfieldText::QueueBossTimer(const ZunVec3& originalPosition,int seconds) {
     if(CtrBossSpellHud::DrawTimer(seconds,g_AsciiManager.color))return;
+    if(!ModernBossLayout()) {
+        auto& manager=*g_AnmManager;
+        manager.SetProjectionMode(PROJECTION_MODE_ORTHOGRAPHIC);
+        auto digit=g_AsciiManager.vm0;
+        digit.flags.anchor=AnmVmAnchor_TopLeft;digit.flags.zWriteDisable=1;
+        digit.flags.isVisible=digit.flags.flag1=1;
+        digit.scaleX=digit.scaleY=Scale();digit.color=g_AsciiManager.color;
+        digit.posOffset=ZunVec3(0,0,0);
+        seconds=std::clamp(seconds,0,99);
+        for(int i=0;i<2;i++) {
+            manager.SetActiveSprite(&digit,ANM_OFFSET_ASCII+'0'-0x15+(i?seconds%10:seconds/10));
+            digit.pos=ZunVec3(GAME_REGION_RIGHT-(30-14*i)*digit.scaleX,16,.495f);
+            manager.DrawNoRotation(&digit);
+        }
+        manager.FlushVertexBuffer();manager.SetCurrentSprite(nullptr);
+        manager.SetProjectionMode(PROJECTION_MODE_PERSPECTIVE);
+        return;
+    }
     auto position=originalPosition;
     const auto savedScale=g_AsciiManager.scale;
     if(ModernBossLayout()) {

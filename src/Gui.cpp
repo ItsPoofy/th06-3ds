@@ -335,7 +335,10 @@ void Gui::ShowSpellcard(i32 spellcardSprite, const char *spellcardName)
     g_AnmManager->SetActiveSprite(&this->impl->enemySpellcardPortrait, ANM_SPRITE_FACE_STAGE_START + spellcardSprite);
     g_AnmManager->SetAndExecuteScriptIdx(&this->impl->enemySpellcardName, ANM_SCRIPT_TEXT_ENEMY_SPELLCARD_NAME);
 #ifdef __3DS__
-    TextHelper::Wrapped(&this->impl->enemySpellcardName,spellcardName,COLOR_WHITE,COLOR_RGB(COLOR_BLACK),290,false,false,true,true,TextHelper::FontRole::SpellTitle);
+    const bool modernBossBar=CtrSettings::Enabled(CtrSettings::Toggle::BossBar) && CtrBossHealthBar::Available();
+    TextHelper::Wrapped(&this->impl->enemySpellcardName,spellcardName,
+        modernBossBar?COLOR_WHITE:0xfff0f0,COLOR_RGB(COLOR_BLACK),290,false,false,true,
+        false,TextHelper::FontRole::SpellTitle);
     CtrBossSpellHud::Begin();
 #else
     g_AnmManager->DrawStringFormat(&this->impl->enemySpellcardName, 0xfff0f0, COLOR_RGB(COLOR_BLACK), "%s", spellcardName);
@@ -1246,32 +1249,22 @@ void Gui::DrawGameScene()
 #ifdef __3DS__
         if(!CtrSettings::Enabled(CtrSettings::Toggle::BossBar) || !CtrBossHealthBar::Available()) {
 #endif
-#ifndef __3DS__
         vm = &this->impl->vms[19];
         g_AnmManager->DrawNoRotation(vm);
-#endif
         vm = &this->impl->vms[21];
         vm->flags.anchor = AnmVmAnchor_TopLeft;
         vm->scaleX = (this->bossHealthBar2 * 288.0f) / 14.0f;
-#ifdef __3DS__
-        // Center the full 288px track in the 384px playfield, independent of HP.
-        vm->pos.x = 32.0f + (384.0f - 288.0f) * .5f;
-#else
         vm->pos.x = 96.0f;
-#endif
         vm->pos.y = 24.0f;
         vm->pos.z = 0.0;
         g_AnmManager->DrawNoRotation(vm);
-#ifndef __3DS__
-        ZunVec3 textPos(80.0f, 16.0f, 0.0);
-        g_AsciiManager.SetColor(this->bossUIOpacity << 24 | 0xffff80);
-        g_AsciiManager.AddFormatText(&textPos, "%d", this->eclSetLives);
-#endif
+        ZunVec3 phasePosition(80.0f,16.0f,0.0f);
+        g_AsciiManager.SetColor(this->bossUIOpacity<<24|0xffff80);
+        g_AsciiManager.AddFormatText(&phasePosition,"%d",this->eclSetLives);
 #ifdef __3DS__
         }
-        ZunVec3 textPos;
 #endif
-        textPos = ZunVec3(384.0f, 16.0f, 0.0f);
+        ZunVec3 textPos(384.0f, 16.0f, 0.0f);
         ZunColor bossLivesColor;
         if (this->spellcardSecondsRemaining >= 20)
         {
