@@ -1,3 +1,4 @@
+#include "RecordsPanel.hpp"
 #include "MenuTiming.hpp"
 #include "PracticeSelection.hpp"
 #include "Presentation.hpp"
@@ -128,6 +129,7 @@ bool CtrPresentation::RefreshMaterial() {
     return material.Load("gameplay-material");
 }
 void CtrPresentation::ReleaseMenuAssets() {
+    CtrRecordsPanel::Release();
     if(!menuAssetsReady)return;
     C3D_FrameSync();
     for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom})t->Clear();
@@ -139,7 +141,7 @@ void CtrPresentation::Shutdown() {
     for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom,&material,&font,&contentFont})t->Clear();
     menuAssetsReady=false;surfaceName.clear();surfaceVariant.clear();
 }
-void CtrPresentation::BeginScene() {CtrSelection::BeginScene();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;}
+void CtrPresentation::BeginScene() {CtrSelection::BeginScene();CtrRecordsPanel::Clear();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;}
 void CtrPresentation::MarkScene() {hasScene=true;}
 bool CtrPresentation::HasScene() {return hasScene;}
 bool CtrPresentation::ReplacesSurface(int slot) {return slot==0 && artwork.ready;}

@@ -1,3 +1,4 @@
+#include "RecordsPanel.hpp"
 #include "CtrRenderer.hpp"
 #include "Runtime.hpp"
 #include "Presentation.hpp"
@@ -453,6 +454,7 @@ void CtrRenderer::SwapBuffers() {
     C2D_Prepare();NativeBlend();
     C2D_TargetClear(top,0xff000000);C2D_TargetClear(bottom,0xff000000);
     CtrPresentation::DrawBackground(top,bottom,gameplayLayout);
+    if(!gameplayLayout)CtrRecordsPanel::DrawBackdrop(top);
     if(gameplayLayout) {
         const float offset=CtrLayout::Offset(),scale=CtrLayout::Scale();
         CtrDecorations::DrawPortrait(top);
@@ -475,6 +477,7 @@ void CtrRenderer::SwapBuffers() {
         CtrSelection::DrawBottomPortraits(bottom);
         C2D_Flush();NativeBlend(true);menuLayer.Draw(bottom);C2D_Flush();NativeBlend();
         CtrPresentation::DrawMenu(bottom);
+        CtrRecordsPanel::Draw(top,bottom);
         CtrSelection::DrawTop(top);
         CtrHud::DrawMenuFps(top);
     }

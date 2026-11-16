@@ -3,6 +3,8 @@
 #include "platform/3ds/ResultKeyboard.hpp"
 #include "platform/3ds/ExtraRecordsCode.hpp"
 #include "platform/3ds/RecordsLayout.hpp"
+#include "platform/3ds/RecordsPanel.hpp"
+#include "platform/3ds/Touch.hpp"
 #endif
 #include "ResultScreen.hpp"
 #include "AnmManager.hpp"
@@ -43,6 +45,227 @@ static const char *const g_RightAlignedDifficultyList[5] = {"     Easy", "   Nor
                                                             "    Extra"};
 
 static const char *const g_ShortCharacterList2[4] = {"ReimuA ", "ReimuB ", "MarisaA", "MarisaB"};
+
+#ifdef __3DS__
+namespace
+{
+using namespace CtrRecordsPanel;
+
+bool IsRecordsBoard(i32 state)
+{
+    return state == RESULT_SCREEN_STATE_INIT || state == RESULT_SCREEN_STATE_CHOOSING_DIFFICULTY ||
+           (state >= RESULT_SCREEN_STATE_BEST_SCORES_EASY && state <= RESULT_SCREEN_STATE_BEST_SCORES_EXTRA);
+}
+
+void SetInterrupt(ResultScreen *resultScreen, i32 interrupt)
+{
+    for (i32 i = 0; i < ARRAY_SIZE_SIGNED(resultScreen->unk_40); i++)
+    {
+        resultScreen->unk_40[i].pendingInterrupt = interrupt;
+    }
+}
+
+void ShowBoard(ResultScreen *resultScreen)
+{
+    resultScreen->diffSelected = Current().difficulty;
+    resultScreen->resultScreenState = RESULT_SCREEN_STATE_BEST_SCORES_EASY + Current().difficulty;
+    resultScreen->lastResultScreenState = resultScreen->resultScreenState;
+    resultScreen->cheatCodeStep = 0;
+}
+
+void EnterBoard(ResultScreen *resultScreen)
+{
+    SetInterrupt(resultScreen, Current().difficulty + 3);
+    ShowBoard(resultScreen);
+    resultScreen->frameTimer = 0;
+}
+
+void OpenSpellCards(ResultScreen *resultScreen)
+{
+    g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
+    SetInterrupt(resultScreen, RESULT_SCREEN_CURSOR_SPELLCARDS + 3);
+    resultScreen->diffSelected = RESULT_SCREEN_CURSOR_SPELLCARDS;
+    resultScreen->resultScreenState = RESULT_SCREEN_STATE_SPELLCARDS;
+    resultScreen->lastResultScreenState = resultScreen->resultScreenState;
+    resultScreen->frameTimer = 0;
+    resultScreen->cursor = resultScreen->previousCursor;
+    resultScreen->lastSpellcardSelected = -1;
+}
+
+void LeaveRecords(ResultScreen *resultScreen)
+{
+    g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);
+    SetInterrupt(resultScreen, 2);
+    resultScreen->resultScreenState = RESULT_SCREEN_STATE_EXITING;
+    resultScreen->frameTimer = 0;
+}
+
+// Sets the choice in one row. Returns true when the shown table changed.
+bool Choose(ResultScreen *resultScreen, i32 row, i32 index)
+{
+    Board &board = Current();
+    switch (row)
+    {
+    case DifficultyRow:
+        board.difficulty = index;
+        ShowBoard(resultScreen);
+        return true;
+    case CharacterRow:
+        board.character = index;
+        return true;
+    case ShotRow:
+        board.shot = index;
+        return true;
+    default:
+        board.button = index;
+        return false;
+    }
+}
+
+i32 ChoiceCount(i32 row)
+{
+    return row == DifficultyRow ? 5 : 2;
+}
+
+i32 ChoiceIndex(i32 row)
+{
+    const Board &board = Current();
+    return row == DifficultyRow ? board.difficulty
+           : row == CharacterRow ? board.character
+           : row == ShotRow      ? board.shot
+                                 : board.button;
+}
+
+void ActivateButton(ResultScreen *resultScreen)
+{
+    if (Current().button == SpellCardsButton)
+    {
+        OpenSpellCards(resultScreen);
+    }
+    else
+    {
+        LeaveRecords(resultScreen);
+    }
+}
+
+void BoardInput(ResultScreen *resultScreen)
+{
+    Board &board = Current();
+    const i32 vertical = WAS_PRESSED(TH_BUTTON_DOWN) - WAS_PRESSED(TH_BUTTON_UP);
+    if (vertical != 0)
+    {
+        board.focus = (board.focus + vertical + RowCount) % RowCount;
+        g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
+    }
+    const i32 horizontal = WAS_PRESSED(TH_BUTTON_RIGHT) - WAS_PRESSED(TH_BUTTON_LEFT);
+    if (horizontal != 0)
+    {
+        const i32 count = ChoiceCount(board.focus);
+        Choose(resultScreen, board.focus, (ChoiceIndex(board.focus) + horizontal + count) % count);
+        g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
+    }
+    int touchX = 0, touchY = 0;
+    if (CtrTouch::Tap(touchX, touchY))
+    {
+        const Hit hit = Touch(touchX, touchY);
+        if (hit.row >= 0)
+        {
+            board.focus = hit.row;
+            Choose(resultScreen, hit.row, hit.index);
+            if (hit.row == ButtonRow)
+            {
+                ActivateButton(resultScreen);
+                return;
+            }
+            g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
+        }
+    }
+    if (WAS_PRESSED(TH_BUTTON_SELECTMENU) && board.focus == ButtonRow)
+    {
+        ActivateButton(resultScreen);
+        return;
+    }
+    if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
+    {
+        LeaveRecords(resultScreen);
+    }
+}
+
+void DrawBoardCaptions()
+{
+    static const char *const captions[] = {"DIFFICULTY", "CHARACTER", "SHOT TYPE"};
+    const auto savedScale = g_AsciiManager.scale;
+    const auto savedColor = g_AsciiManager.color;
+    const auto savedGui = g_AsciiManager.isGui;
+    const auto savedLower = g_AsciiManager.lowerScreen;
+    g_AsciiManager.isGui = false;
+    g_AsciiManager.lowerScreen = true;
+    g_AsciiManager.scale = ZunVec2(1.0f, 1.0f);
+    const i32 focus = Current().focus;
+    for (i32 row = 0; row < 3; row++)
+    {
+        g_AsciiManager.color = row == focus ? 0xffffe0a0 : 0xff968282;
+        ZunVec3 position(Left, SectionTop(row), 0.0f);
+        g_AsciiManager.AddString(&position, captions[row]);
+    }
+    const char arrow[] = {TEXT_RIGHT_ARROW, '\0'};
+    g_AsciiManager.scale = ZunVec2(1.25f, 1.25f);
+    g_AsciiManager.color = COLOR_WHITE;
+    ZunVec3 arrowPosition(26.0f, (focus == ButtonRow ? ButtonCenter : RowCenter(focus)) - 10.0f, 0.0f);
+    g_AsciiManager.AddString(&arrowPosition, arrow);
+    g_AsciiManager.scale = savedScale;
+    g_AsciiManager.color = savedColor;
+    g_AsciiManager.isGui = savedGui;
+    g_AsciiManager.lowerScreen = savedLower;
+}
+
+void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 characterShot, bool nameEntry)
+{
+    const auto savedScale = g_AsciiManager.scale;
+    ZunVec3 position;
+    g_AsciiManager.scale = ZunVec2(0.9f, 0.9f);
+    g_AsciiManager.color = 0xffb0b0c8;
+    position = ZunVec3(NameX, TableTop - 26.0f, 0.0f);
+    g_AsciiManager.AddString(&position, "NAME");
+    position = ZunVec3(ScoreX + 76.0f, TableTop - 26.0f, 0.0f);
+    g_AsciiManager.AddString(&position, "SCORE");
+    position = ZunVec3(StageX - 8.0f, TableTop - 26.0f, 0.0f);
+    g_AsciiManager.AddString(&position, "ST");
+
+    g_AsciiManager.scale = ZunVec2(TableScale, TableScale);
+    const ScoreListNode *node = resultScreen->scores[difficulty][characterShot].next;
+    for (i32 row = 0; row < 10 && node != NULL && node->data != NULL; row++, node = node->next)
+    {
+        const f32 y = TableTop + row * TableSpacing;
+        const bool editing = nameEntry && node->data->base.unk_9 != 0;
+        g_AsciiManager.color = editing ? 0xfff0f0ff : nameEntry ? 0x80ffc0c0 : row == 0 ? 0xffffe8c8 : 0xffffc0c0;
+        position = ZunVec3(RankX, y, 0.0f);
+        g_AsciiManager.AddFormatText(&position, "%2d", row + 1);
+        position.x = NameX;
+        g_AsciiManager.AddFormatText(&position, "%-8s", node->data->name);
+        if (editing)
+        {
+            char cursor[9] = "        ";
+            cursor[resultScreen->cursor >= 8 ? 7 : resultScreen->cursor] = '_';
+            g_AsciiManager.AddString(&position, cursor);
+        }
+        position.x = ScoreX;
+        g_AsciiManager.AddFormatText(&position, "%9d", node->data->score);
+        position.x = StageX;
+        if (node->data->stage <= 6)
+        {
+            g_AsciiManager.AddFormatText(&position, "%d", node->data->stage);
+        }
+        else
+        {
+            g_AsciiManager.AddString(&position, node->data->stage == 7 ? "1" : "C");
+        }
+    }
+    g_AsciiManager.scale = savedScale;
+    g_AsciiManager.color = COLOR_WHITE;
+}
+} // namespace
+#endif
 
 #define DEFAULT_HIGH_SCORE_NAME "Nanashi "
 
@@ -1450,6 +1673,10 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
 
     case RESULT_SCREEN_STATE_CHOOSING_DIFFICULTY:
 
+#ifdef __3DS__
+        EnterBoard(resultScreen);
+        break;
+#endif
         ResultScreen::MoveCursor(resultScreen, 7);
 
         vm = &resultScreen->unk_40[1];
@@ -1624,6 +1851,13 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
     case RESULT_SCREEN_STATE_BEST_SCORES_HARD:
     case RESULT_SCREEN_STATE_BEST_SCORES_LUNATIC:
 
+#ifdef __3DS__
+        if (resultScreen->frameTimer >= 8 && !recordsCodeInput)
+        {
+            BoardInput(resultScreen);
+        }
+        break;
+#endif
         if (resultScreen->charUsed != resultScreen->cursor && resultScreen->frameTimer == 20)
         {
             resultScreen->charUsed = resultScreen->cursor;
@@ -1784,7 +2018,14 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
     g_Supervisor.viewport.Set();
     g_AnmManager->CopySurfaceToBackBuffer(0, 0, 0, 0, 0);
 
-    for (row = 0; row < ARRAY_SIZE_SIGNED(resultScreen->unk_40); row++, sprite++)
+#ifdef __3DS__
+    const bool board = IsRecordsBoard(resultScreen->resultScreenState);
+    const bool nameEntry = resultScreen->resultScreenState == RESULT_SCREEN_STATE_WRITING_HIGHSCORE_NAME;
+    const i32 spriteCount = board || nameEntry ? 1 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
+#else
+    const i32 spriteCount = ARRAY_SIZE_SIGNED(resultScreen->unk_40);
+#endif
+    for (row = 0; row < spriteCount; row++, sprite++)
     {
         spritePos = sprite->pos;
         sprite->pos += sprite->posOffset;
@@ -1792,8 +2033,30 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
         g_AnmManager->DrawNoRotation(sprite);
         sprite->pos = spritePos;
     }
+#ifdef __3DS__
+    if (board || nameEntry)
+    {
+        CtrRecordsPanel::Board &current = CtrRecordsPanel::Current();
+        if (nameEntry)
+        {
+            current.difficulty = resultScreen->diffSelected;
+            current.character = resultScreen->charUsed;
+            current.shot = g_GameManager.shotType;
+        }
+        CtrRecordsPanel::Show(board);
+        if (board)
+        {
+            DrawBoardCaptions();
+        }
+        DrawBoardTable(resultScreen, current.difficulty, current.character * 2 + current.shot, nameEntry);
+    }
+#endif
     sprite = &resultScreen->unk_40[14];
+#ifdef __3DS__
+    if (sprite->pos.x < 640.0f && !board && !nameEntry)
+#else
     if (sprite->pos.x < 640.0f)
+#endif
     {
         if (resultScreen->lastResultScreenState != 8)
         {

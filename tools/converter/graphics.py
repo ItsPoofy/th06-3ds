@@ -84,6 +84,7 @@ def prepare(root, resources):
         path = ui if lang == 'jp' else dest/'variants/en/ui'
         path.mkdir(parents=True, exist_ok=True)
         write_texture(path/'selection-atlas.bin', selection_atlas(root, resources, lang))
+        write_texture(path/'records-atlas.bin', Image.open(resources/f'records-{lang}.png').convert('RGBA'))
     for source in (resources/'backgrounds').glob('*.png'):
         image = Image.open(source).convert('RGBA')
         write_texture(ui/(source.stem+'.bin'), image)

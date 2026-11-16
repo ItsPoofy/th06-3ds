@@ -204,3 +204,30 @@ def redraw(sprite, original_text, text, font_path, sizes, max_width=None, align=
         x = width - geometry['x'] - ink*scale - offset*scale
     glyph = glyphs(text, font_path, geometry['size'], x, geometry['y'], width, height, stretch)
     return render(glyph, geometry['outline'], sums), geometry, scale
+
+
+def tint(sums, hue, ink_top, ink_bottom):
+    """Restyle a color table as white at the top of the letters, grading to one hue.
+
+    The fill stays white through the top third of the ink rows
+    (ink_top to ink_bottom) and reaches the hue at the baseline. Bright entries
+    (fill and highlight) take that gradient. Dark entries (outline and glow)
+    become a dark shade of the hue. The table's own brightness is kept as a
+    factor, so bevels carry over.
+    """
+    import colorsys
+    base = np.array(colorsys.hsv_to_rgb(hue/360, .85, 1.0))
+    out = sums.copy()
+    height = ink_bottom - ink_top
+    for y in range(out.shape[0]):
+        t = np.clip((y + .5 - ink_top - .3*height)/(.6*height), 0, 1)
+        for entry in out[y].reshape(-1, 5):
+            if entry[3] <= 0:
+                continue
+            value = np.clip(entry[:3]/entry[3]/255, 0, 1).max()
+            if value > .45:
+                rgb = (np.ones(3)*(1 - t) + base*t)*(.7 + .3*value)
+            else:
+                rgb = base*value*.55
+            entry[:3] = rgb*255*entry[3]
+    return out
