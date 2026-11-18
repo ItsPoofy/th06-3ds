@@ -12,6 +12,7 @@
 #include "SpellTitleLayout.hpp"
 #include "BossSpellLayout.hpp"
 #include "SpellTitleDecoration.hpp"
+#include "GameDecorations.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -175,7 +176,8 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
     }
     const bool player=source.activeSpriteIndex==ANM_OFFSET_TEXT+6;
     const bool modern=ModernBossLayout();
-    const float available=modern && !player?CtrBossSpellLayout::Right-CtrBossSpellLayout::TitleLeft:Right-Left-16;
+    const float titleLeft=CtrBossSpellLayout::TitleLeft(CtrDecorations::CurrentBossName());
+    const float available=modern && !player?CtrBossSpellLayout::Right-titleLeft:Right-Left-16;
     const float fitX=std::min(base,available/(std::max(1.f,width)*std::max(1.f,source.scaleX)));
     sprite.uvStart.x+=source.ctrTextStart/sprite.textureWidth;
     sprite.uvEnd.x=sprite.uvStart.x+width/sprite.textureWidth;sprite.widthPx=width;
@@ -183,7 +185,7 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
     vm.scaleX=source.scaleX*fitX;vm.scaleY=source.scaleY*base;
     vm.flags.anchor=AnmVmAnchor_TopLeft;
     const auto placement=CtrSpellTitleLayout::Place(player,modern,source.pos.x,source.pos.y,
-        source.scaleX,width,sprite.heightPx,fitX,base);
+        source.scaleX,width,sprite.heightPx,fitX,base,titleLeft);
     vm.pos.x=placement.x;vm.pos.y=placement.y;vm.posOffset=ZunVec3(0,0,0);
     if(!player)vm.color=(vm.color&0xff000000)|0xffffff;
     if(modern) {

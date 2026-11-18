@@ -23,6 +23,8 @@ float infoTop=CtrBossSpellLayout::InfoTop(0);
 int bonus=0,successes=0,attempts=0;
 int recordIndex=-1;
 bool capturing=false;
+bool infoPending=false;
+unsigned infoBossAlpha=0;
 
 void SetGlyphColor(ZunColor color) {
     AnmVm state{};state.flags.zWriteDisable=1;state.color=color;
@@ -42,24 +44,37 @@ void Glyph(int sx,int sy,int w,int h,float x,float y,float scale,ZunColor color)
     SetGlyphColor(color);
     GlyphVertices(sx,sy,w,h,x,y,scale);
 }
+struct Ink {int left,right;};
+constexpr Ink SmallInk[12]={{0,22},{5,17},{0,22},{1,21},{0,22},{1,21},{1,22},{1,22},{1,21},{1,22},{1,11},{0,13}};
+constexpr int OutlineOverlap=3;
+int GlyphIndex(char c) {return c=='/'?11:c=='.'?10:c>='0' && c<='9'?c-'0':-1;}
+float Advance(int index) {return (SmallInk[index].right-SmallInk[index].left-OutlineOverlap)*CtrBossSpellLayout::DigitScale;}
 float NumberWidth(const char* text) {
-    float width=0;for(const char* c=text;*c;c++)width+=(*c=='/'?7:16)*CtrBossSpellLayout::InfoScale;
-    return width+6*CtrBossSpellLayout::InfoScale;
+    float width=OutlineOverlap*CtrBossSpellLayout::DigitScale;
+    for(const char* c=text;*c;c++)if(const int index=GlyphIndex(*c);index>=0)width+=Advance(index);
+    return width;
 }
 void NumberGlyphs(const char* text,float x,float y) {
     for(const char* c=text;*c;c++) {
-        const int index=*c=='/'?11:*c-'0';
-        if(index>=0 && index<12)GlyphVertices(index*22,56,22,34,x,y,CtrBossSpellLayout::InfoScale);
-        x+=(*c=='/'?7:16)*CtrBossSpellLayout::InfoScale;
+        const int index=GlyphIndex(*c);
+        if(index<0)continue;
+        GlyphVertices(index*22,56,22,34,x-SmallInk[index].left*CtrBossSpellLayout::DigitScale,y,CtrBossSpellLayout::DigitScale);
+        x+=Advance(index);
     }
 }
-void Number(const char* text,float x,float y,ZunColor color) {
-    constexpr float outline=.65f;
+constexpr float LabelOutline=.45f,DigitOutline=1.3f;
+template<class Draw> void Outlined(ZunColor color,float x,float y,float outline,Draw draw) {
     SetGlyphColor(color&0xff000000);
     for(int row=-1;row<=1;row++)for(int column=-1;column<=1;column++)
-        if(row || column)NumberGlyphs(text,x+column*outline,y+row*outline);
+        if(row || column)draw(x+column*outline,y+row*outline);
     SetGlyphColor(color);
-    NumberGlyphs(text,x,y);
+    draw(x,y);
+}
+void Number(const char* text,float x,float y,ZunColor color) {
+    Outlined(color,x,y,DigitOutline,[&](float px,float py){NumberGlyphs(text,px,py);});
+}
+void Label(int sx,int sy,int w,int h,float x,float y,ZunColor color) {
+    Outlined(color,x,y+CtrBossSpellLayout::LabelDrop,LabelOutline,[&](float px,float py){GlyphVertices(sx,sy,w,h,px,py,CtrBossSpellLayout::LabelScale);});
 }
 void ReadHistory() {
     if(recordIndex>=0 && recordIndex<int(std::size(g_GameManager.catk))) {
@@ -101,6 +116,7 @@ void CtrBossSpellHud::Tick() {
     timeline.Tick(g_Supervisor.FramerateMultiplier());
 }
 bool CtrBossSpellHud::DrawTimer(int fallbackSeconds,ZunColor color) {
+    infoPending=false;
     if(!texture || !CtrSettings::Enabled(CtrSettings::Toggle::BossBar) || !CtrBossHealthBar::Available())return false;
     if(g_Gui.HasCurrentMsgIdx() || g_Gui.impl->finishedStage)return true;
     auto& manager=*g_AnmManager;
@@ -120,21 +136,7 @@ bool CtrBossSpellHud::DrawTimer(int fallbackSeconds,ZunColor color) {
     manager.SetCurrentSprite(nullptr);manager.SetCurrentTexture(texture);
     manager.SetVertexAttributes(VERTEX_ATTR_TEX_COORD);
     const unsigned bossAlpha=color>>24;
-    const unsigned alpha=unsigned(timeline.InfoOpacity()*bossAlpha);
-    if(alpha) {
-        const float x=timeline.ExitSlide();
-        const float top=infoTop+timeline.InfoSlide();
-        const ZunColor white=(alpha<<24)|0xffffff,cyan=(alpha<<24)|0xb0ffff;
-        char history[20],score[16];
-        std::snprintf(history,sizeof(history),"%02d/%02d",std::clamp(successes,0,99),std::clamp(attempts,0,99));
-        std::snprintf(score,sizeof(score),"%d",bonus);
-        using namespace CtrBossSpellLayout;
-        Glyph(0,96,96,32,BonusLeft+x,top,InfoScale,cyan);
-        if(capturing)Number(score,BonusRight-NumberWidth(score)+x,top,white);
-        else Glyph(256,96,80,32,BonusRight-80*InfoScale+x,top,InfoScale,white);
-        Glyph(112,96,128,32,HistoryLeft+x,top,InfoScale,cyan);
-        Number(history,HistoryRight-NumberWidth(history)+x,top,white);
-    }
+    infoBossAlpha=bossAlpha;infoPending=true;
     const int name=std::clamp(CtrDecorations::CurrentBossName(),0,10);
     Glyph(name%2*256,128+name/2*32,256,32,36,16,.5f,(bossAlpha<<24)|0xd0ffd0);
     auto star=g_AsciiManager.vm0;
@@ -149,4 +151,28 @@ bool CtrBossSpellHud::DrawTimer(int fallbackSeconds,ZunColor color) {
     manager.FlushVertexBuffer();manager.SetCurrentSprite(nullptr);
     manager.SetProjectionMode(PROJECTION_MODE_PERSPECTIVE);
     return true;
+}
+void CtrBossSpellHud::DrawInfo() {
+    if(!infoPending)return;
+    infoPending=false;
+    const unsigned alpha=unsigned(timeline.InfoOpacity()*infoBossAlpha);
+    if(!alpha || !texture)return;
+    auto& manager=*g_AnmManager;
+    manager.SetProjectionMode(PROJECTION_MODE_ORTHOGRAPHIC);
+    manager.SetCurrentSprite(nullptr);manager.SetCurrentTexture(texture);
+    manager.SetVertexAttributes(VERTEX_ATTR_TEX_COORD);
+    const float x=timeline.ExitSlide();
+    const float top=infoTop+timeline.InfoSlide();
+    const ZunColor white=(alpha<<24)|0xffffff;
+    char history[20],score[16];
+    std::snprintf(history,sizeof(history),"%02d/%02d",std::clamp(successes,0,99),std::clamp(attempts,0,99));
+    std::snprintf(score,sizeof(score),"%d",bonus);
+    using namespace CtrBossSpellLayout;
+    Label(0,96,96,32,BonusLeft+x,top,white);
+    if(capturing)Number(score,BonusRight-NumberWidth(score)+x,top,white);
+    else Label(256,96,80,32,BonusRight-80*LabelScale+x,top,white);
+    Label(112,96,128,32,HistoryLeft+x,top,white);
+    Number(history,HistoryRight-NumberWidth(history)+x,top,white);
+    manager.FlushVertexBuffer();manager.SetCurrentSprite(nullptr);
+    manager.SetProjectionMode(PROJECTION_MODE_PERSPECTIVE);
 }

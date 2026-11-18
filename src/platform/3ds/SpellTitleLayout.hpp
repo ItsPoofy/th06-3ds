@@ -7,11 +7,11 @@ struct Placement {float x,y,edgeLeft,edgeRight;};
 inline constexpr float PlayfieldTop=16,PlayfieldBottom=464;
 inline constexpr float BarMargin=24,BarPadding=4;
 inline Placement Place(bool player,bool modern,float scriptX,float scriptY,
-                       float zoom,float width,float height,float scaleX,float scaleY) {
+                       float zoom,float width,float height,float scaleX,float scaleY,float titleLeft) {
     // The original layout leaves 24px beside the text and 28px above/below it.
     float x=player?56+(scriptX-192):392+(scriptX-256)-width*zoom*scaleX;
     if(modern) {
-        x=player?32+(scriptX-192):std::max(CtrBossSpellLayout::TitleLeft,
+        x=player?32+(scriptX-192):std::max(titleLeft,
             416+(scriptX-256)-width*zoom*scaleX);
     }
     const float restTop=modern?16.f:PlayfieldTop+BarMargin+BarPadding;

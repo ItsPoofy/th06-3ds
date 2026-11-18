@@ -1614,6 +1614,10 @@ void Gui::DrawStageElements() const
         g_AnmManager->DrawNoRotation(&this->impl->enemySpellcardName);
 #endif
     }
+#ifdef __3DS__
+    // The Bonus and History row goes over the spell card name's backdrop.
+    CtrBossSpellHud::DrawInfo();
+#endif
     if (this->impl->loadingScreenSprite.activeSpriteIndex >= 0)
     {
         g_Supervisor.viewport.x = g_GameManager.arcadeRegionTopLeftPos.x;
