@@ -59,8 +59,10 @@ def language(dest, resources):
     for index, (path, name) in enumerate(blocks):
         paragraph = ' '.join(comments[str(index+1)][1:]).translate(str.maketrans({'’': "'", '‘': "'", '“': '"', '”': '"', '—': '-', '–': '-', '…': '...'}))
         lines = []
+        # Each half-line is padded to 32 bytes. Keep it to 31 so the padding
+        # always leaves a space before the next half.
         for word in paragraph.split():
-            if (lines and len((lines[-1]+' '+word).encode('utf-8')) <= 32
+            if (lines and len((lines[-1]+' '+word).encode('utf-8')) <= 31
                     and english_font.getlength(lines[-1]+' '+word)<=460):
                 lines[-1] += ' '+word
             else:

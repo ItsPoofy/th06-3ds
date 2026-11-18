@@ -152,9 +152,9 @@ void MusicRoom::HandleTouch(int x, int y)
     case Action::Next:
         this->PlayTrack((this->selectedSongIndex + 1) % this->numDescriptors);
         break;
-    case Action::StartStop:
+    case Action::PlayPause:
         if (float seconds, duration; CtrAudio::MusicPosition(seconds, duration))
-            g_Supervisor.StopAudio();
+            CtrAudio::PauseMusic(!CtrAudio::MusicPaused());
         else
             this->PlayTrack(this->selectedSongIndex);
         break;

@@ -1,3 +1,4 @@
+#include <string>
 #include "NdspAudio.hpp"
 #include "SfxVoices.hpp"
 #include "AssetPath.hpp"
@@ -14,6 +15,7 @@
 #include <vector>
 
 namespace {
+std::string loadedMusic;
 constexpr unsigned BlockBytes=8192,Slots=3;
 struct Block {u32 samples,bytes,offset;ndspAdpcmData context[2];};
 static_assert(sizeof(Block)==24);
@@ -23,7 +25,7 @@ FILE* music=nullptr;std::vector<Block> blocks;u16 coefficients[2][16]{};
 // First sample of each block, and the track length, for position and seeking.
 std::vector<u32> blockStarts;u32 totalSamples=0,lastPosition=0;
 u32 rate=0,nextBlock=0,loopBlock=0;unsigned nextSlot=0;
-bool initialized=false,playing=false,looping=false;
+bool initialized=false,playing=false,looping=false,paused=false;
 float lastMusicGain=-1;
 u64 clearedAt=0,fadeStart=0,fadeDuration=0;
 SDL_Thread* worker=nullptr;std::atomic_bool quit=false;
@@ -53,7 +55,7 @@ void ClearChannelsLocked() {
 }
 void StopLocked() {
  streamActive.store(false,std::memory_order_release);fadeActive=false;
- playing=false;fadeStart=fadeDuration=0;lastMusicGain=-1;
+ playing=paused=false;fadeStart=fadeDuration=0;lastMusicGain=-1;
  ClearChannelsLocked();
  if(music)fclose(music);music=nullptr;blocks.clear();blockStarts.clear();totalSamples=lastPosition=0;
 }
@@ -131,6 +133,7 @@ void CtrAudio::Shutdown() {
 }
 bool CtrAudio::LoadMusic(const char* path) {
  if(!initialized)return false;Guard guard;StopLocked();
+ loadedMusic=path;
  music=fopen(Path(path,".ndsp").c_str(),"rb");if(!music)return false;
  u32 header[7];bool ok=fread(header,1,sizeof(header),music)==sizeof(header) && header[0]==0x5053444e && header[1]==1 && header[3]==2 && header[2]>=8000 && header[2]<=48000 && header[4]>0 && header[4]<10000 && header[5]<header[4];
  if(ok) {
@@ -143,6 +146,9 @@ bool CtrAudio::LoadMusic(const char* path) {
  blockStarts.resize(blocks.size());
  for(size_t i=0;i<blocks.size();i++){blockStarts[i]=totalSamples;totalSamples+=blocks[i].samples;}
  return true;
+}
+bool CtrAudio::MusicPlaying(const char* path) {
+ if(!initialized)return false;Guard guard;return music && playing && loadedMusic==path;
 }
 bool CtrAudio::HasLoop(){if(!initialized)return false;Guard guard;return music && loopBlock<blocks.size();}
 namespace {
@@ -162,13 +168,22 @@ bool StartLocked(u32 firstBlock) {
  }
  for(unsigned i=0;i<Slots;i++)if(!Fill(i)){StopLocked();return false;}
  // Queue both stereo channels while paused, then release them in one DSP update.
- ndspChnSetPaused(0,false);ndspChnSetPaused(1,false);playing=true;
+ if(!paused){ndspChnSetPaused(0,false);ndspChnSetPaused(1,false);}
+ playing=true;
  streamActive.store(true,std::memory_order_release);LightEvent_Signal(&streamEvent);return true;
 }
 }
 bool CtrAudio::PlayMusic(bool loop) {
  if(!initialized || aptShouldClose())return false;Guard guard;if(!music || blocks.empty())return false;
- looping=loop;return StartLocked(0);
+ looping=loop;paused=false;return StartLocked(0);
+}
+void CtrAudio::PauseMusic(bool pause) {
+ if(!initialized)return;Guard guard;
+ if(!playing || paused==pause)return;
+ paused=pause;ndspChnSetPaused(0,pause);ndspChnSetPaused(1,pause);
+}
+bool CtrAudio::MusicPaused() {
+ if(!initialized)return false;Guard guard;return playing && paused;
 }
 void CtrAudio::StopMusic(){if(initialized){Guard guard;StopLocked();}}
 bool CtrAudio::MusicPosition(float& seconds,float& duration) {

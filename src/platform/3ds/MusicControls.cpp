@@ -22,7 +22,7 @@ constexpr float BarTouchTop=320,BarTouchBottom=380;
 constexpr float ButtonScale=1.5f,ButtonY=412,ButtonTouchTop=390;
 constexpr float ButtonCenters[]={120,320,520};
 constexpr CtrMusicControls::Action Buttons[]={CtrMusicControls::Action::Previous,
-    CtrMusicControls::Action::StartStop,CtrMusicControls::Action::Next};
+    CtrMusicControls::Action::PlayPause,CtrMusicControls::Action::Next};
 
 constexpr unsigned NormalColor=0xe0c0c0c0,ActiveColor=0xffffffff,PressedColor=0xffff6060;
 constexpr int HighlightFrames=8;
@@ -99,11 +99,11 @@ void CtrMusicControls::Draw() {
     float seconds=0,duration=0;
     const bool playing=CtrAudio::MusicPosition(seconds,duration);
     DrawTimes(playing,seconds,duration);
-    const char* labels[]={"<< PREV",playing?"STOP":"START","NEXT >>"};
+    const char* labels[]={"<< PREV",playing && !CtrAudio::MusicPaused()?"PAUSE":"PLAY","NEXT >>"};
     for(int i=0;i<3;i++) {
         const float width=(GlyphAdvance*std::strlen(labels[i])+2)*ButtonScale;
         const bool pressed=highlightFrames>0 && highlighted==Buttons[i];
-        const unsigned color=pressed?PressedColor:Buttons[i]==Action::StartStop?ActiveColor:NormalColor;
+        const unsigned color=pressed?PressedColor:Buttons[i]==Action::PlayPause?ActiveColor:NormalColor;
         Text(labels[i],ButtonCenters[i]-width/2,ButtonY,ButtonScale,color);
     }
     if(highlightFrames>0)highlightFrames--;
