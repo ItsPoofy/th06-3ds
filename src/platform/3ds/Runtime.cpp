@@ -20,8 +20,13 @@ void OnLifecycle(APT_HookType type,void*) {
 }
 }
 extern "C" {
+    // libctru sizes the heaps from the memory this process was granted. The
+    // game's own data needs a fixed 30 MB heap; a linear (GPU) heap size of 0
+    // gives the linear heap everything else. An Old 3DS grants about 64 MB,
+    // leaving it the 26 MB this port was built around; a New 3DS can grant
+    // more, which then goes to textures and audio.
     u32 __ctru_heap_size=30*1024*1024;
-    u32 __ctru_linear_heap_size=26*1024*1024;
+    u32 __ctru_linear_heap_size=0;
     u32 __stacksize__=512*1024;
 }
 void CtrRuntime::Log(const char* text) {
@@ -41,6 +46,12 @@ bool CtrRuntime::Initialize() {
     mkdir("sdmc:/3ds/th06",0755);
     if(chdir("sdmc:/3ds/th06")) return false;
     FILE* f=fopen("startup.log","w");if(f)fclose(f);
+    {
+        char message[96];
+        snprintf(message,sizeof(message),"Memory: heap %lu KiB, linear heap %lu KiB",
+            static_cast<unsigned long>(__ctru_heap_size/1024),static_cast<unsigned long>(__ctru_linear_heap_size/1024));
+        Log(message);
+    }
     mkdir("sdmc:/3ds/th06/replay",0755);
 #ifdef TH06_EMBED_ASSETS
     if(R_FAILED(romfsInit())) {Log("Failed to mount embedded assets");return false;}
