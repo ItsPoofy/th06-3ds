@@ -55,6 +55,8 @@ public:
     void CompleteScene() { sceneComplete=true; }
     void InvalidateScene() { sceneComplete=false; }
     void BeginMenuLayer(bool clear=true);
+    // Drops this frame's lower-screen layer when its scene has ended.
+    void DiscardMenuLayer() {menuLayer.Reset();}
     void EndMenuLayer();
     void ShowLoadingScreen();
     void SuspendForApplet();

@@ -51,4 +51,9 @@ struct MusicRoom
     AnmVm mainVm[1];
     AnmVm titleSprites[32];
     AnmVm descriptionSprites[16];
+#ifdef __3DS__
+    // Frames since the room opened, and since B was pressed (0 while staying).
+    i32 fadeFrame;
+    i32 leaveFrame;
+#endif
 };

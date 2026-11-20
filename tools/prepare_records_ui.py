@@ -18,6 +18,8 @@ from PIL import Image, ImageDraw
 sys.path.insert(0, str(Path(__file__).resolve().parent/'converter'))
 import menu_text_art as art
 from graphics import decode_texture
+import prepare_title_art
+import render_ui_label
 
 ROWS = ['View Easy Records', 'View Normal Records', 'View Hard Records',
         'View Lunatic Records', 'View Extra Records']
@@ -97,13 +99,13 @@ BOARD_LABELS = {
     'header0': ('Reimu - Spirit Sign', '霊夢 - 霊符', REIMU), 'header1': ('Reimu - Dream Sign', '霊夢 - 夢符', REIMU),
     'header2': ('Marisa - Magic Sign', '魔理沙 - 魔符', MARISA), 'header3': ('Marisa - Love Sign', '魔理沙 - 恋符', MARISA),
 }
-# The lower screen draws its labels 1.25 times the size of the original rows.
-# Header labels, and difficulty copies prefixed "small-", stay at row size.
-BOTTOM_SCALE = 1.25
+# Controls share one enlarged size. Header labels use a smaller common size.
+BOTTOM_SCALE = 1.5
+HEADER_SCALE = 1.25
 ATLAS_WIDTH = 512
 
 
-def board_atlas(resources, pop, geometry, colors):
+def board_atlas(resources, pop, geometry, colors, title01):
     """Write records-en.png, records-jp.png and assets/records_labels.hpp."""
     probe = np.nonzero(art.glyphs('EHN', pop, geometry['size'], 4, geometry['y'], 64, 32).any(1))[0]
     ink_top, ink_bottom = probe.min()/art.SS, (probe.max() + 1)/art.SS
@@ -119,10 +121,22 @@ def board_atlas(resources, pop, geometry, colors):
         return image
     entries = []
     for name, (english, japanese, hue) in BOARD_LABELS.items():
-        scale = 1 if name.startswith('header') else BOTTOM_SCALE
+        scale = HEADER_SCALE if name.startswith('header') else BOTTOM_SCALE
         entries.append((name, label(english, hue, scale), label(japanese, hue, scale)))
         if name.startswith('difficulty'):
-            entries.append(('small-' + name, label(english, hue, 1), label(japanese, hue, 1)))
+            entries.append(('small-' + name, label(english, hue, HEADER_SCALE), label(japanese, hue, HEADER_SCALE)))
+    titles = []
+    for language, text in (('en', 'Dreamy Records'), ('jp', '夢の記録')):
+        title = prepare_title_art.title(text, pop, 768, 64, 752, left=7)
+        bounds = title.getbbox()
+        title = title.crop((bounds[0], 0, bounds[2], title.height))
+        subtitle, _, _ = render_ui_label.render_label('Result of Score and Spell Card', pop,
+            title01, 18, 1, 2)
+        title.save(resources/f'records-title-{language}.png')
+        subtitle.save(resources/f'records-subtitle-{language}.png')
+        titles.append((title, subtitle))
+    entries.append(('records-title', titles[0][0], titles[1][0]))
+    entries.append(('records-subtitle', titles[0][1], titles[1][1]))
     # Shelf packing. Both languages share each slot, sized to the wider label.
     slots, x, y, shelf = [], 1, 1, 0
     for name, english, japanese in entries:
@@ -165,7 +179,7 @@ def prepare(resources, assets, pop):
     normal = np.asarray(rows[1])[..., 3] >= art.SOLID
     end = next(c for c in range(256) if normal[:, :c].any() and not normal[:, c:c + 3].any())
     geometry = art.fit(rows[1].crop((0, 0, end, 32)), 'Normal', pop, ROW_SIZES)
-    board_atlas(resources, pop, geometry, colors)
+    board_atlas(resources, pop, geometry, colors, assets/'data/title01.png')
     def row(text, width):
         glyph = art.glyphs(text, pop, geometry['size'], geometry['x'], geometry['y'], width, 32)
         return art.render(glyph, geometry['outline'], colors)

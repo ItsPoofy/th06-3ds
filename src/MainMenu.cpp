@@ -26,6 +26,7 @@
 #include "platform/3ds/TitleLogo.hpp"
 #include "platform/3ds/SelectionLayout.hpp"
 #include "platform/3ds/PracticeSelection.hpp"
+#include "platform/3ds/NdspAudio.hpp"
 #include "platform/3ds/StageScores.hpp"
 #include "platform/3ds/SelectionReturn.hpp"
 #include "platform/3ds/SelectionFlow.hpp"
@@ -51,6 +52,7 @@ constexpr int MenuDuration(int nativeFrames) {
 }
 #ifdef __3DS__
 static CtrMenuTiming::Clock g_MenuAnimationClocks[122];
+static bool g_ReturnToMenuList = false;
 #endif
 
 static i16 g_LastJoystickInput;
@@ -127,6 +129,28 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
     switch (menu->gameState)
     {
     case STATE_STARTUP:
+#ifdef __3DS__
+        if (g_ReturnToMenuList)
+        {
+            g_ReturnToMenuList = false;
+            if (menu->BeginStartup() != ZUN_SUCCESS)
+            {
+                return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
+            }
+            menu->gameState = STATE_MAIN_MENU;
+            menu->stateTimer = 0;
+            for (auto &vm : menu->vm)
+            {
+                vm.pendingInterrupt = 2;
+            }
+            menu->minimumOpacity = 0;
+            menu->menuTextColor = COLOR_MENU_ACTIVE_BACKGROUND;
+            menu->numFramesSinceActive = 0;
+            menu->framesActive = MenuDuration(60);
+            CtrTitleLogo::Return(*menu);
+            break;
+        }
+#endif
         startedUp = menu->BeginStartup();
         if (startedUp == ZUN_ERROR)
         {
@@ -2373,6 +2397,11 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
     }
     m->unk_81e4 = 0;
 
+#ifdef __3DS__
+    g_ReturnToMenuList = g_Supervisor.wantedState2 == SUPERVISOR_STATE_RESULTSCREEN ||
+                         g_Supervisor.wantedState2 == SUPERVISOR_STATE_MUSICROOM;
+#endif
+
     switch (g_Supervisor.wantedState2)
     {
     case SUPERVISOR_STATE_GAMEMANAGER:
@@ -2430,7 +2459,13 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
 #endif
         if (g_Supervisor.startupTimeBeforeMenuMusic == 0)
         {
+#ifdef __3DS__
+            if (!CtrAudio::MusicPlaying("bgm/th06_01.wav"))
+#endif
             g_Supervisor.PlayAudio("bgm/th06_01.mid");
+#ifdef __3DS__
+            if (!g_ReturnToMenuList)
+#endif
             ScreenEffect::RegisterChain(SCREEN_EFFECT_FADE_IN, MenuDuration(120), titleFadeColor, 0, 0);
         }
         else

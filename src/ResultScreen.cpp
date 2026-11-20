@@ -4,6 +4,8 @@
 #include "platform/3ds/ExtraRecordsCode.hpp"
 #include "platform/3ds/RecordsLayout.hpp"
 #include "platform/3ds/RecordsPanel.hpp"
+#include "platform/3ds/MenuTiming.hpp"
+#include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/Touch.hpp"
 #endif
 #include "ResultScreen.hpp"
@@ -23,6 +25,7 @@
 #include "ZunMath.hpp"
 #include "i18n.hpp"
 #include "utils.hpp"
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -80,9 +83,58 @@ void EnterBoard(ResultScreen *resultScreen)
     resultScreen->frameTimer = 0;
 }
 
-void OpenSpellCards(ResultScreen *resultScreen)
+i32 enterFrame = 0, switchFrame = -1;
+
+f32 Smooth(i32 frame, i32 frames)
 {
-    g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
+    const f32 t = std::clamp(f32(frame) / frames, 0.0f, 1.0f);
+    return t * t * (3 - 2 * t);
+}
+
+f32 ContentOpacity(const ResultScreen *resultScreen)
+{
+    f32 opacity = CtrMenuTiming::Progress(enterFrame);
+    if (resultScreen->resultScreenState == RESULT_SCREEN_STATE_EXITING)
+    {
+        opacity = std::min(opacity, 1 - CtrMenuTiming::Progress(resultScreen->frameTimer));
+    }
+    return opacity;
+}
+
+constexpr f32 SlideDistance = CtrMenuCanvas::Width;
+f32 SpellShare(const ResultScreen *resultScreen)
+{
+    const bool spellCards = resultScreen->resultScreenState == RESULT_SCREEN_STATE_SPELLCARDS;
+    if (switchFrame < 0)
+    {
+        return spellCards ? 1.0f : 0.0f;
+    }
+    const f32 progress = Smooth(switchFrame, CtrMenuTiming::Frames);
+    return spellCards ? progress : 1 - progress;
+}
+View BoardView(f32 share)
+{
+    return {-SlideDistance * share, 1 - share};
+}
+View SpellView(f32 share)
+{
+    return {SlideDistance * (1 - share), share};
+}
+u32 Faded(u32 color, f32 opacity)
+{
+    return (u32((color >> 24) * opacity) << 24) | (color & 0xffffff);
+}
+
+// The title drops in from above the screen as it opens, over the same 30
+// frames and distance as the Music Room title.
+constexpr i32 TitleFrames = 30;
+f32 TitleY()
+{
+    return -48.0f + 60.0f * std::min(1.0f, f32(enterFrame) / TitleFrames);
+}
+
+void ShowSpellCards(ResultScreen *resultScreen)
+{
     SetInterrupt(resultScreen, RESULT_SCREEN_CURSOR_SPELLCARDS + 3);
     resultScreen->diffSelected = RESULT_SCREEN_CURSOR_SPELLCARDS;
     resultScreen->resultScreenState = RESULT_SCREEN_STATE_SPELLCARDS;
@@ -90,11 +142,28 @@ void OpenSpellCards(ResultScreen *resultScreen)
     resultScreen->frameTimer = 0;
     resultScreen->cursor = resultScreen->previousCursor;
     resultScreen->lastSpellcardSelected = -1;
+    CtrRecords::OpenList(*resultScreen);
+}
+
+void OpenSpellCards(ResultScreen *resultScreen)
+{
+    g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
+    ShowSpellCards(resultScreen);
+    switchFrame = 0;
+}
+
+void CloseSpellCards(ResultScreen *resultScreen)
+{
+    g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);
+    resultScreen->previousCursor = resultScreen->cursor;
+    EnterBoard(resultScreen);
+    switchFrame = 0;
 }
 
 void LeaveRecords(ResultScreen *resultScreen)
 {
     g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);
+    CtrPresentation::PrepareReturn("data/title/title00.jpg");
     SetInterrupt(resultScreen, 2);
     resultScreen->resultScreenState = RESULT_SCREEN_STATE_EXITING;
     resultScreen->frameTimer = 0;
@@ -191,7 +260,7 @@ void BoardInput(ResultScreen *resultScreen)
     }
 }
 
-void DrawBoardCaptions()
+void DrawBoardCaptions(View view)
 {
     static const char *const captions[] = {"DIFFICULTY", "CHARACTER", "SHOT TYPE"};
     const auto savedScale = g_AsciiManager.scale;
@@ -200,18 +269,19 @@ void DrawBoardCaptions()
     const auto savedLower = g_AsciiManager.lowerScreen;
     g_AsciiManager.isGui = false;
     g_AsciiManager.lowerScreen = true;
-    g_AsciiManager.scale = ZunVec2(1.0f, 1.0f);
+    g_AsciiManager.scale = ZunVec2(CaptionScale, CaptionScale);
     const i32 focus = Current().focus;
+    const f32 slide = view.LowerSlide();
     for (i32 row = 0; row < 3; row++)
     {
-        g_AsciiManager.color = row == focus ? 0xffffe0a0 : 0xff968282;
-        ZunVec3 position(Left, SectionTop(row), 0.0f);
+        g_AsciiManager.color = Faded(row == focus ? 0xffffe0a0 : 0xff968282, view.opacity);
+        ZunVec3 position(Left + slide, SectionTop(row), 0.0f);
         g_AsciiManager.AddString(&position, captions[row]);
     }
     const char arrow[] = {TEXT_RIGHT_ARROW, '\0'};
     g_AsciiManager.scale = ZunVec2(1.25f, 1.25f);
-    g_AsciiManager.color = COLOR_WHITE;
-    ZunVec3 arrowPosition(26.0f, (focus == ButtonRow ? ButtonCenter : RowCenter(focus)) - 10.0f, 0.0f);
+    g_AsciiManager.color = Faded(COLOR_WHITE, view.opacity);
+    ZunVec3 arrowPosition(26.0f + slide, (focus == ButtonRow ? ButtonCenter : RowCenter(focus)) - 10.0f, 0.0f);
     g_AsciiManager.AddString(&arrowPosition, arrow);
     g_AsciiManager.scale = savedScale;
     g_AsciiManager.color = savedColor;
@@ -219,17 +289,22 @@ void DrawBoardCaptions()
     g_AsciiManager.lowerScreen = savedLower;
 }
 
-void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 characterShot, bool nameEntry)
+void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 characterShot, bool nameEntry, View view)
 {
     const auto savedScale = g_AsciiManager.scale;
     ZunVec3 position;
-    g_AsciiManager.scale = ZunVec2(0.9f, 0.9f);
-    g_AsciiManager.color = 0xffb0b0c8;
-    position = ZunVec3(NameX, TableTop - 26.0f, 0.0f);
+    g_AsciiManager.scale = ZunVec2(TableHeaderScale, TableHeaderScale);
+    g_AsciiManager.color = Faded(0xffb0b0c8, view.opacity);
+    // The headers stay in place for every table. NAME is centred over the
+    // 8-character name field, SCORE over the last 8 places of the score field.
+    constexpr f32 glyphAdvance = 14.0f * TableScale, headerAdvance = 14.0f * TableHeaderScale;
+    const f32 slide = view.slide;
+    const f32 scoreRight = ScoreX + 9 * glyphAdvance;
+    position = ZunVec3(NameX + slide + (8 * glyphAdvance - 4 * headerAdvance) / 2, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "NAME");
-    position = ZunVec3(ScoreX + 76.0f, TableTop - 26.0f, 0.0f);
+    position = ZunVec3(scoreRight + slide - (8 * glyphAdvance + 5 * headerAdvance) / 2, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "SCORE");
-    position = ZunVec3(StageX - 8.0f, TableTop - 26.0f, 0.0f);
+    position = ZunVec3(StageX + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "ST");
 
     g_AsciiManager.scale = ZunVec2(TableScale, TableScale);
@@ -238,10 +313,11 @@ void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 charac
     {
         const f32 y = TableTop + row * TableSpacing;
         const bool editing = nameEntry && node->data->base.unk_9 != 0;
-        g_AsciiManager.color = editing ? 0xfff0f0ff : nameEntry ? 0x80ffc0c0 : row == 0 ? 0xffffe8c8 : 0xffffc0c0;
-        position = ZunVec3(RankX, y, 0.0f);
+        g_AsciiManager.color =
+            Faded(editing ? 0xfff0f0ff : nameEntry ? 0x80ffc0c0 : row == 0 ? 0xffffe8c8 : 0xffffc0c0, view.opacity);
+        position = ZunVec3(RankX + slide, y, 0.0f);
         g_AsciiManager.AddFormatText(&position, "%2d", row + 1);
-        position.x = NameX;
+        position.x = NameX + slide;
         g_AsciiManager.AddFormatText(&position, "%-8s", node->data->name);
         if (editing)
         {
@@ -249,9 +325,9 @@ void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 charac
             cursor[resultScreen->cursor >= 8 ? 7 : resultScreen->cursor] = '_';
             g_AsciiManager.AddString(&position, cursor);
         }
-        position.x = ScoreX;
+        position.x = ScoreX + slide;
         g_AsciiManager.AddFormatText(&position, "%9d", node->data->score);
-        position.x = StageX;
+        position.x = StageX + slide;
         if (node->data->stage <= 6)
         {
             g_AsciiManager.AddFormatText(&position, "%d", node->data->stage);
@@ -1605,6 +1681,13 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
 #ifdef __3DS__
     bool recordsCodeInput=false;
 #endif
+#ifdef __3DS__
+    if (enterFrame < TitleFrames)
+    {
+        enterFrame++;
+    }
+    const bool switching = switchFrame >= 0;
+#endif
     switch (resultScreen->resultScreenState)
     {
 
@@ -1764,7 +1847,11 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
 
     case RESULT_SCREEN_STATE_EXITING:
 
+#ifdef __3DS__
+        if (resultScreen->frameTimer < CtrMenuTiming::Frames)
+#else
         if (resultScreen->frameTimer < 60)
+#endif
         {
             break;
         }
@@ -1852,7 +1939,7 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
     case RESULT_SCREEN_STATE_BEST_SCORES_LUNATIC:
 
 #ifdef __3DS__
-        if (resultScreen->frameTimer >= 8 && !recordsCodeInput)
+        if (resultScreen->frameTimer >= 8 && !recordsCodeInput && !switching)
         {
             BoardInput(resultScreen);
         }
@@ -1900,13 +1987,17 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
 
     case RESULT_SCREEN_STATE_SPELLCARDS:
 
+#ifdef __3DS__
+        if (resultScreen->frameTimer >= 8 && !switching && CtrRecords::Input(*resultScreen))
+        {
+            CloseSpellCards(resultScreen);
+        }
+        break;
+#endif
         if (resultScreen->lastSpellcardSelected != resultScreen->cursor && resultScreen->frameTimer == 20)
         {
 
             resultScreen->lastSpellcardSelected = resultScreen->cursor;
-#ifdef __3DS__
-            CtrRecords::PrepareSpellPage(*resultScreen);
-#else
             for (i = resultScreen->lastSpellcardSelected * 10; i < resultScreen->lastSpellcardSelected * 10 + 10; i++)
             {
                 if (i >= ARRAY_SIZE_SIGNED(g_GameManager.catk))
@@ -1924,19 +2015,12 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
                                                 COLOR_RGB(COLOR_BLACK), g_GameManager.catk[i].name);
                 }
             }
-#endif
         }
         if (resultScreen->frameTimer < 30)
         {
             break;
         }
-        if (ResultScreen::MoveCursorHorizontally(resultScreen,
-#ifdef __3DS__
-            CtrRecords::PageCount()
-#else
-            7
-#endif
-        ))
+        if (ResultScreen::MoveCursorHorizontally(resultScreen, 7))
         {
             resultScreen->frameTimer = 0;
             vm = &resultScreen->unk_40[0];
@@ -2019,9 +2103,19 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
     g_AnmManager->CopySurfaceToBackBuffer(0, 0, 0, 0, 0);
 
 #ifdef __3DS__
-    const bool board = IsRecordsBoard(resultScreen->resultScreenState);
+    const bool board = IsRecordsBoard(resultScreen->resultScreenState) ||
+                       resultScreen->resultScreenState == RESULT_SCREEN_STATE_EXITING;
     const bool nameEntry = resultScreen->resultScreenState == RESULT_SCREEN_STATE_WRITING_HIGHSCORE_NAME;
-    const i32 spriteCount = board || nameEntry ? 1 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
+    const bool spellCards = resultScreen->resultScreenState == RESULT_SCREEN_STATE_SPELLCARDS;
+    const bool records = board || nameEntry || spellCards;
+    const i32 spriteCount = records ? 0 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
+    if(records)CtrRecordsPanel::ShowTitle(TitleY());
+    CtrPresentation::SetContentOpacity(ContentOpacity(resultScreen));
+    const f32 share = SpellShare(resultScreen);
+    if (switchFrame >= 0 && ++switchFrame >= CtrMenuTiming::Frames)
+    {
+        switchFrame = -1;
+    }
 #else
     const i32 spriteCount = ARRAY_SIZE_SIGNED(resultScreen->unk_40);
 #endif
@@ -2029,7 +2123,6 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
     {
         spritePos = sprite->pos;
         sprite->pos += sprite->posOffset;
-
         g_AnmManager->DrawNoRotation(sprite);
         sprite->pos = spritePos;
     }
@@ -2043,17 +2136,31 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
             current.character = resultScreen->charUsed;
             current.shot = g_GameManager.shotType;
         }
-        CtrRecordsPanel::Show(board);
+        CtrRecordsPanel::Show(board, BoardView(share));
         if (board)
         {
-            DrawBoardCaptions();
+            DrawBoardCaptions(BoardView(share));
         }
-        DrawBoardTable(resultScreen, current.difficulty, current.character * 2 + current.shot, nameEntry);
+        DrawBoardTable(resultScreen, current.difficulty, current.character * 2 + current.shot, nameEntry,
+                       BoardView(share));
+    }
+    if (spellCards && share < 1)
+    {
+        const CtrRecordsPanel::Board &current = CtrRecordsPanel::Current();
+        CtrRecordsPanel::Show(true, BoardView(share));
+        DrawBoardCaptions(BoardView(share));
+        DrawBoardTable(resultScreen, current.difficulty, current.character * 2 + current.shot, false, BoardView(share));
+    }
+    if (spellCards || (board && share > 0))
+    {
+        CtrRecordsPanel::ShowSpellCards(SpellView(share));
+        CtrRecords::DrawList(*resultScreen, SpellView(share));
+        CtrRecords::DrawDetails(*resultScreen, SpellView(share));
     }
 #endif
     sprite = &resultScreen->unk_40[14];
 #ifdef __3DS__
-    if (sprite->pos.x < 640.0f && !board && !nameEntry)
+    if (sprite->pos.x < 640.0f && !records)
 #else
     if (sprite->pos.x < 640.0f)
 #endif
@@ -2176,9 +2283,6 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
         else
         {
 
-#ifdef __3DS__
-            CtrRecords::DrawSpellPage(*resultScreen,sprite->pos);
-#else
             spritePos = sprite->pos;
             spritePos.y += 16.0f;
 
@@ -2216,7 +2320,6 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
                 spritePos.x -= 368.0f;
                 spritePos.y += 30.0f;
             }
-#endif
         }
     }
 #ifndef __3DS__
@@ -2343,6 +2446,10 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
 
 ZunResult ResultScreen::AddedCallback(ResultScreen *resultScreen)
 {
+#ifdef __3DS__
+    enterFrame = 0;
+    switchFrame = -1;
+#endif
 
     i32 slot;
     i32 characterShot;
@@ -2444,6 +2551,8 @@ ZunResult ResultScreen::AddedCallback(ResultScreen *resultScreen)
     }
 
     if (resultScreen->resultScreenState == RESULT_SCREEN_STATE_EXIT &&
+        g_GameManager.currentStage>=1 && g_GameManager.currentStage<=PSCR_NUM_STAGES &&
+        g_GameManager.difficulty<PSCR_NUM_DIFFICULTIES &&
         g_GameManager.pscr[g_GameManager.CharacterShotType()][g_GameManager.currentStage - 1][g_GameManager.difficulty]
                 .score < g_GameManager.score)
     {
@@ -2458,6 +2567,10 @@ ZunResult ResultScreen::AddedCallback(ResultScreen *resultScreen)
 
 ZunResult ResultScreen::DeletedCallback(ResultScreen *resultScreen)
 {
+#ifdef __3DS__
+    // Text queued on the last frame would otherwise draw over the next scene.
+    g_AsciiManager.numStrings = 0;
+#endif
     i32 character;
     i32 difficulty;
 

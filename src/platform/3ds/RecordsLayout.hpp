@@ -1,9 +1,10 @@
 #pragma once
+#include "RecordsPanel.hpp"
 struct ResultScreen;
-struct ZunVec3;
 namespace CtrRecords {
-    inline constexpr int PageSize=5;
-    int PageCount();
-    void PrepareSpellPage(ResultScreen& screen);
-    void DrawSpellPage(ResultScreen& screen,const ZunVec3& origin);
+inline constexpr int VisibleRows=11;
+void OpenList(ResultScreen& screen);
+bool Input(ResultScreen& screen);
+void DrawList(ResultScreen& screen,CtrRecordsPanel::View view);
+void DrawDetails(ResultScreen& screen,CtrRecordsPanel::View view);
 }

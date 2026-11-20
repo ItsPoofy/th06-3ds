@@ -1,4 +1,5 @@
 #include "RecordsPanel.hpp"
+#include "MenuCanvas.hpp"
 #include "CtrRenderer.hpp"
 #include "Runtime.hpp"
 #include "Presentation.hpp"
@@ -44,7 +45,7 @@ bool CtrRenderer::Start() {
     if(!C3D_Init(2*1024*1024)) {CtrRuntime::Log("Renderer: C3D_Init failed");return false;}
     CtrRuntime::Log("Renderer: C3D ready");
     started=true;
-    if(!C2D_Init(256)) {CtrRuntime::Log("Renderer: C2D_Init failed");return false;}
+    if(!C2D_Init(1024)) {CtrRuntime::Log("Renderer: C2D_Init failed");return false;}
     top=C2D_CreateScreenTarget(GFX_TOP,GFX_LEFT);
     bottom=C2D_CreateScreenTarget(GFX_BOTTOM,GFX_LEFT);
     if(!C3D_TexInitVRAM(&scene,1024,512,GPU_RGBA8)) {CtrRuntime::Log("Renderer: scene texture failed");return false;}
@@ -151,6 +152,7 @@ void CtrRenderer::GetViewport(u32* v) {
 }
 void CtrRenderer::SetViewport(i32 x,i32 y,i32 w,i32 h) {
     if(drawingMenuLayer) {x/=2;y/=2;w/=2;h/=2;}
+    else if(CtrMenuCanvas::FullWidth() && x==0 && w==640 && h==480)w=CtrMenuCanvas::Width;
     viewport[0]=x; viewport[1]=y; viewport[2]=w; viewport[3]=h;
 }
 void CtrRenderer::SetClearColor(f32 r,f32 g,f32 b,f32 a) {
@@ -328,9 +330,10 @@ void CtrRenderer::ReadPixels(i32 x,i32 y,i32 w,i32 h,const void* p) {
     C3D_FrameBegin(0);frameOpen=true;vertexCursor=0;queuedCommands=0;
     GSPGPU_InvalidateDataCache(scene.data,scene.size);
     auto* dst=(u8*)p;
+    const int sceneWidth=CtrMenuCanvas::FullWidth()?CtrMenuCanvas::Width:640;
     for(int j=0;j<h;j++) for(int i=0;i<w;i++) {
         u8* d=dst+(j*w+i)*4;
-        if(x+i<0 || y+j<0 || x+i>=640 || y+j>=480) {std::memset(d,0,4);continue;}
+        if(x+i<0 || y+j<0 || x+i>=sceneWidth || y+j>=480) {std::memset(d,0,4);continue;}
         const u8* s=(u8*)scene.data+TexelOffset(x+i,scene.height-1-(y+j),scene.width)*4;
         d[0]=s[3];d[1]=s[2];d[2]=s[1];d[3]=s[0];
     }
@@ -454,7 +457,7 @@ void CtrRenderer::SwapBuffers() {
     C2D_Prepare();NativeBlend();
     C2D_TargetClear(top,0xff000000);C2D_TargetClear(bottom,0xff000000);
     CtrPresentation::DrawBackground(top,bottom,gameplayLayout);
-    if(!gameplayLayout)CtrRecordsPanel::DrawBackdrop(top);
+    if(!gameplayLayout)CtrPresentation::DrawListBox(top);
     if(gameplayLayout) {
         const float offset=CtrLayout::Offset(),scale=CtrLayout::Scale();
         CtrDecorations::DrawPortrait(top);
@@ -463,10 +466,11 @@ void CtrRenderer::SwapBuffers() {
         C2D_SceneBegin(top);C2D_DrawImageAt(image,CtrLayout::Left(),offset,0,nullptr,scale,scale);
         if(!CtrLayout::Single()) {C2D_SceneBegin(bottom);C2D_DrawImageAt(image,CtrLayout::Left(false),offset-240,0,nullptr,scale,scale);}
     } else {
-        Tex3DS_SubTexture sub{640,480,0,480.0f/512,640.0f/1024,0};
+        const u16 width=CtrMenuCanvas::FullWidth()?CtrMenuCanvas::Width:640;
+        Tex3DS_SubTexture sub{width,480,0,480.0f/512,float(width)/1024,0};
         C2D_Image image{&scene,&sub};
         C2D_Flush();NativeBlend(true);
-        C2D_SceneBegin(top);C2D_DrawImageAt(image,40,0,0,nullptr,0.5f,0.5f);
+        C2D_SceneBegin(top);C2D_DrawImageAt(image,CtrMenuCanvas::ScreenLeft(),0,0,nullptr,0.5f,0.5f);
         C2D_Flush();NativeBlend();
     }
     if(gameplayLayout) {
@@ -479,6 +483,7 @@ void CtrRenderer::SwapBuffers() {
         CtrPresentation::DrawMenu(bottom);
         CtrRecordsPanel::Draw(top,bottom);
         CtrSelection::DrawTop(top);
+        CtrPresentation::DrawContentFade(top,bottom);
         CtrHud::DrawMenuFps(top);
     }
     CtrPresentation::DrawOverlays(top,bottom);

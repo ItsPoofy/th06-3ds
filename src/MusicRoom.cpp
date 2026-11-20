@@ -13,6 +13,9 @@
 #include "platform/3ds/CtrRenderer.hpp"
 #include "platform/3ds/MusicControls.hpp"
 #include "platform/3ds/MusicDescription.hpp"
+#include "platform/3ds/MenuTiming.hpp"
+#include "platform/3ds/MenuCanvas.hpp"
+#include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/NdspAudio.hpp"
 #include "platform/3ds/Settings.hpp"
 #include "platform/3ds/ContentAssets.hpp"
@@ -24,11 +27,11 @@
 
 namespace {
 #ifdef __3DS__
-// The title ends near y = 80. Rows leave an equal margin below it and above the bottom edge.
-constexpr int VisibleRows=14;
+constexpr int VisibleRows=11;
 constexpr float ListScale=1.4f;
-constexpr float ListTop=106,ListSpacing=25;
-constexpr float ListArrowX=8,ListTitleX=98;
+constexpr float ListTop=118,ListSpacing=30;
+constexpr float ListTitleX=98;
+constexpr float ListBoxLeft=40,ListBoxRight=CtrMenuCanvas::Width-40,ListBoxMargin=8,ListRowHeight=21;
 constexpr float DescriptionScale=1.2f;
 constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
 constexpr float DescriptionRowWidth=(640-2*DescriptionLeft)/DescriptionScale;
@@ -113,8 +116,14 @@ bool MusicRoom::ProcessInput()
     if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
     {
         g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);
+#ifdef __3DS__
+        CtrPresentation::PrepareReturn("data/title/title00.jpg");
+        this->leaveFrame = 1;
+        return false;
+#else
         g_Supervisor.curState = SUPERVISOR_STATE_MAINMENU;
         return true;
+#endif
     }
 
     return false;
@@ -194,6 +203,22 @@ ZunResult MusicRoom::RegisterChain()
 ChainCallbackResult MusicRoom::OnUpdate(MusicRoom *musicRoom)
 {
     i32 oldInputSetting = musicRoom->enableInput;
+#ifdef __3DS__
+    if (musicRoom->fadeFrame < CtrMenuTiming::Frames)
+    {
+        musicRoom->fadeFrame++;
+    }
+    if (musicRoom->leaveFrame > 0)
+    {
+        if (++musicRoom->leaveFrame > CtrMenuTiming::Frames)
+        {
+            g_Supervisor.curState = SUPERVISOR_STATE_MAINMENU;
+            return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
+        }
+        g_AnmManager->ExecuteScript(musicRoom->mainVm);
+        return CHAIN_CALLBACK_RESULT_CONTINUE;
+    }
+#endif
     for (;;)
     {
         switch (musicRoom->enableInput)
@@ -236,6 +261,15 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
     rightArrowStr[0] = TEXT_RIGHT_ARROW;
     rightArrowStr[1] = '\0';
 
+#ifdef __3DS__
+    const float opening = CtrMenuTiming::Progress(musicRoom->fadeFrame);
+    const float closing = musicRoom->leaveFrame > 0 ? 1 - CtrMenuTiming::Progress(musicRoom->leaveFrame) : 1;
+    CtrPresentation::SetContentOpacity(std::min(opening, closing));
+    const i32 lastRow = std::min(musicRoom->numDescriptors, musicRoom->listingOffset + VisibleRows) - 1;
+    CtrPresentation::ShowListBox(ListBoxLeft, ListTop - ListBoxMargin, ListBoxRight,
+                                 ListTop + (VisibleRows - 1) * ListSpacing + ListRowHeight + ListBoxMargin,
+                                 musicRoom->listingOffset > 0, lastRow < musicRoom->numDescriptors - 1);
+#endif
     g_AnmManager->SetCurrentTexture(0);
     g_AnmManager->CopySurfaceToBackBuffer(0, 0, 0, 0, 0);
 #ifdef __3DS__
@@ -268,15 +302,6 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
         musicRoom->titleSprites[i].pos.y = ListTop + (i - musicRoom->listingOffset) * ListSpacing;
         musicRoom->titleSprites[i].pos.z = 0.0f;
         g_AnmManager->DrawNoRotation(&musicRoom->titleSprites[i]);
-
-        g_AsciiManager.scale = ZunVec2(ListScale, ListScale);
-        textPos = musicRoom->titleSprites[i].pos;
-        if (musicRoom->cursor == i)
-        {
-            textPos.x = ListArrowX;
-            g_AsciiManager.AddString(&textPos, rightArrowStr);
-        }
-        g_AsciiManager.scale = ZunVec2(1.0f, 1.0f);
 #else
         musicRoom->titleSprites[i].pos.x = 93.0f;
         musicRoom->titleSprites[i].pos.y = 104.0f + (((i + 1) - musicRoom->listingOffset) * 18) - 20.0f;
@@ -565,6 +590,10 @@ void MusicRoom::DisplayDescription() {
 
 ZunResult MusicRoom::DeletedCallback(MusicRoom *musicRoom)
 {
+#ifdef __3DS__
+    // Text queued on the last frame would otherwise draw over the next scene.
+    g_AsciiManager.numStrings = 0;
+#endif
     delete[] musicRoom->trackDescriptors;
     musicRoom->trackDescriptors = NULL;
 

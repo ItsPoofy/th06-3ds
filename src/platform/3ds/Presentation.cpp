@@ -1,6 +1,7 @@
 #include "RecordsPanel.hpp"
 #include "MenuTiming.hpp"
 #include "PracticeSelection.hpp"
+#include "SelectionFlow.hpp"
 #include "Presentation.hpp"
 #include "DisplaySettings.hpp"
 #include "Settings.hpp"
@@ -20,6 +21,7 @@
 #include "GameWindow.hpp"
 #include "NativeImage.hpp"
 #include "MenuBackdrop.hpp"
+#include "MenuCanvas.hpp"
 #include "../../../assets/ui-font/ui_labels.hpp"
 #include <array>
 #include <cstdio>
@@ -48,22 +50,28 @@ struct Texture {
         sub={static_cast<u16>(h[1]),static_cast<u16>(h[2]),0,1,float(h[1])/h[3],1-float(h[2])/h[4]};
         return true;
     }
-    void Draw(float x=0,float y=0,unsigned alpha=255) {
-        if(ready)CtrNative::DrawImage({&gpu,&sub},x,y,C2D_Color32(255,255,255,alpha));
+    void Draw(float x=0,float y=0,unsigned alpha=255,unsigned brightness=255) {
+        if(ready)CtrNative::DrawImage({&gpu,&sub},x,y,C2D_Color32(brightness,brightness,brightness,alpha));
     }
-    // Scene artwork keeps the source photo's edge rows, and result.jpg's top
-    // row is a grey seam. Filtering at an upscaled resolution also blends the
-    // opposite edge into the first row. Skip one texel row at the top and
-    // bottom and stretch the rest over the full height.
-    void DrawArtwork(unsigned alpha=255) {
+    void DrawArtwork(unsigned alpha=255,unsigned brightness=255) {
         if(!ready)return;
         Tex3DS_SubTexture inner=sub;
+        inner.width=sub.width-2;
         inner.height=sub.height-2;
+        inner.left+=1.f/gpu.width;inner.right-=1.f/gpu.width;
         inner.top-=1.f/gpu.height;inner.bottom+=1.f/gpu.height;
-        CtrNative::DrawImage({&gpu,&inner},0,0,C2D_Color32(255,255,255,alpha),1,float(sub.height)/inner.height);
+        CtrNative::DrawImage({&gpu,&inner},0,0,C2D_Color32(brightness,brightness,brightness,alpha),
+            float(sub.width)/inner.width,float(sub.height)/inner.height);
     }
 };
 Texture previousArtwork;int backgroundFrame=CtrMenuTiming::Frames;
+float backgroundMix=1;
+unsigned shownBrightness=255,previousBrightness=255;
+float contentOpacity=1;
+Texture returnArtwork;
+struct ListBox {float left=0,top=0,right=0,bottom=0;bool above=false,below=false;float opacity=1;};
+std::array<ListBox,2> listBoxes;
+unsigned listBoxCount=0;
 Texture artwork,mainBottom,creditsBottom,material,font,contentFont;
 bool menuAssetsReady=false;
 bool EnsureMenuAssets() {
@@ -72,9 +80,24 @@ bool EnsureMenuAssets() {
         CtrCharacterPortraits::Initialize();
     return menuAssetsReady;
 }
-std::string surfaceName,surfaceVariant;
+std::string surfaceName,surfaceVariant,previousSurfaceName,returnName,returnVariant;
+// Artwork name and its file variant for a surface path, as LoadSurface keys them.
+std::string SurfaceName(const char* path) {
+    auto name=CtrAssets::Normalize(path);name=name.substr(name.find_last_of('/')+1);
+    return name.substr(0,name.find_last_of('.'));
+}
+bool UsesBackdrop(const std::string& name) {return name=="result" || name=="music";}
+void DrawLowerArtwork(const std::string& name,unsigned alpha,unsigned brightness=255) {
+    if(UsesBackdrop(name))CtrMenuBackdrop::Draw(alpha);else mainBottom.Draw(0,0,alpha,brightness);
+}
+bool MenuSceneChange() {
+    const auto side=[](int state) {return state==SUPERVISOR_STATE_RESULTSCREEN || state==SUPERVISOR_STATE_MUSICROOM;};
+    const int from=g_Supervisor.wantedState,to=g_Supervisor.curState;
+    return (from==SUPERVISOR_STATE_MAINMENU && side(to)) || (side(from) && to==SUPERVISOR_STATE_MAINMENU);
+}
 enum class Panel {None,Main,Options,Controls,Loading,Selection};
 Panel panel=Panel::None;
+bool selectionBackdrop=false;
 struct Row {std::string label,value;bool selected=false;bool disabled=false;unsigned opacity=255;float slideX=0,slideY=0;};
 std::array<Row,11> rows;
 int rowCount=0;
@@ -132,28 +155,42 @@ void CtrPresentation::ReleaseMenuAssets() {
     CtrRecordsPanel::Release();
     if(!menuAssetsReady)return;
     C3D_FrameSync();
-    for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom})t->Clear();
+    for(Texture* t:{&previousArtwork,&artwork,&returnArtwork,&mainBottom,&creditsBottom})t->Clear();
     CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();
     surfaceName.clear();surfaceVariant.clear();menuAssetsReady=false;
 }
 void CtrPresentation::Shutdown() {
     CtrDecorations::Shutdown();CtrSelectionArt::Shutdown();CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrHud::Shutdown();
-    for(Texture* t:{&previousArtwork,&artwork,&mainBottom,&creditsBottom,&material,&font,&contentFont})t->Clear();
+    for(Texture* t:{&previousArtwork,&artwork,&returnArtwork,&mainBottom,&creditsBottom,&material,&font,&contentFont})t->Clear();
     menuAssetsReady=false;surfaceName.clear();surfaceVariant.clear();
 }
-void CtrPresentation::BeginScene() {CtrSelection::BeginScene();CtrRecordsPanel::Clear();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;}
+void CtrPresentation::BeginScene() {
+    CtrSelection::BeginScene();CtrRecordsPanel::Clear();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;
+    contentOpacity=1;listBoxCount=0;
+}
 void CtrPresentation::MarkScene() {hasScene=true;}
 bool CtrPresentation::HasScene() {return hasScene;}
 bool CtrPresentation::ReplacesSurface(int slot) {return slot==0 && artwork.ready;}
 void CtrPresentation::LoadSurface(int slot,const char* path) {
     if(slot!=0)return;
     if(!EnsureMenuAssets())return;
-    auto name=CtrAssets::Normalize(path);name=name.substr(name.find_last_of('/')+1);
-    name=name.substr(0,name.find_last_of('.'));
+    const auto name=SurfaceName(path);
     const auto variant=CtrContent::Path("ui",(name+".bin").c_str());
+    if(returnArtwork.ready && name==returnName && variant==returnVariant) {
+        previousArtwork.Clear();previousSurfaceName.clear();artwork.Clear();
+        artwork=returnArtwork;returnArtwork={};
+        surfaceName=returnName;surfaceVariant=returnVariant;
+        returnName.clear();returnVariant.clear();
+        backgroundFrame=CtrMenuTiming::Frames;backgroundMix=1;
+        if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->DiscardMenuLayer();
+        return;
+    }
     if(artwork.ready && name==surfaceName && variant==surfaceVariant)return;
-    previousArtwork.Clear();
-    if(panel==Panel::Loading)artwork.Clear();else previousArtwork=artwork;
+    if(artwork.ready || !previousArtwork.ready) {
+        previousArtwork.Clear();previousSurfaceName=surfaceName;
+        if(panel==Panel::Loading)artwork.Clear();else previousArtwork=artwork;
+        previousBrightness=shownBrightness;
+    }
     artwork={};backgroundFrame=previousArtwork.ready?0:CtrMenuTiming::Frames;
     surfaceName.clear();surfaceVariant.clear();
     if(artwork.Load(name)) {surfaceName=name;surfaceVariant=variant;}
@@ -161,7 +198,25 @@ void CtrPresentation::LoadSurface(int slot,const char* path) {
 void CtrPresentation::ReleaseSurface(int slot) {
     if(slot!=0 || (!artwork.ready && !previousArtwork.ready))return;
     if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
-    previousArtwork.Clear();artwork.Clear();surfaceName.clear();surfaceVariant.clear();
+    previousArtwork.Clear();previousSurfaceName.clear();
+    backgroundFrame=CtrMenuTiming::Frames;backgroundMix=1;
+    if(MenuSceneChange() && g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->DiscardMenuLayer();
+    if(MenuSceneChange() && returnArtwork.ready) {
+        artwork.Clear();artwork=returnArtwork;returnArtwork={};
+        surfaceName=returnName;surfaceVariant=returnVariant;
+        return;
+    }
+    if(MenuSceneChange() && artwork.ready) {
+        previousArtwork=artwork;artwork={};previousSurfaceName=surfaceName;
+        previousBrightness=shownBrightness;
+    } else artwork.Clear();
+    surfaceName.clear();surfaceVariant.clear();
+}
+void CtrPresentation::PrepareReturn(const char* path) {
+    if(returnArtwork.ready || !EnsureMenuAssets())return;
+    returnName=SurfaceName(path);
+    returnVariant=CtrContent::Path("ui",(returnName+".bin").c_str());
+    if(!returnArtwork.Load(returnName))returnName.clear();
 }
 void CtrPresentation::CaptureShade(float left,float top,float right,float bottom,unsigned color,bool backgroundOnly) {
     if(left>0 || top>0 || right<640 || bottom<480)return;
@@ -181,6 +236,7 @@ bool CtrPresentation::ReplacesMenu(const MainMenu& menu,int vmIndex) {
 void CtrPresentation::CaptureMenu(const MainMenu& menu) {
     MarkScene();
     openingTitle=menu.gameState==STATE_PRE_INPUT;animationFrame=menu.stateTimer;
+    selectionBackdrop=false;
     auto add=[&](int i,const char* label,const std::string& value="") {
         rows[i]={label,value,i==menu.cursor,false};
     };
@@ -211,7 +267,7 @@ void CtrPresentation::CaptureMenu(const MainMenu& menu) {
         const float opacity=1-CtrMenuTiming::Progress(animationFrame);
         for(auto& row:rows)row.opacity=unsigned(row.opacity*opacity);
     } else if(IsSelection(menu)) {
-        panel=Panel::Selection;rowCount=0;
+        panel=Panel::Selection;rowCount=0;selectionBackdrop=true;
     } else if(menu.gameState==STATE_MAIN_MENU || menu.gameState==STATE_PRE_INPUT || menu.gameState==STATE_QUIT) {
         panel=Panel::Main;captureMain();
     } else if(menu.gameState==STATE_OPTIONS) {
@@ -256,19 +312,29 @@ void CtrPresentation::DrawBackground(C3D_RenderTarget* top,C3D_RenderTarget* bot
     if(gameplay)material.Draw();else if(artwork.ready) {
         artwork.DrawArtwork();
         if(backgroundFrame<CtrMenuTiming::Frames) {
-            previousArtwork.DrawArtwork(unsigned(255*(1-CtrMenuTiming::Progress(backgroundFrame++))));
-        } else previousArtwork.Clear();
+            backgroundMix=CtrMenuTiming::Progress(backgroundFrame++);
+            previousArtwork.DrawArtwork(unsigned(255*(1-backgroundMix)),previousBrightness);
+        } else {previousArtwork.Clear();backgroundMix=1;}
         Shade(400,240);
+        shownBrightness=CtrPresentation::SceneOpacity();
     }
     else material.Draw();
     C2D_SceneBegin(bottom);
     if(gameplay)material.Draw(-40,-240);
     else if(surfaceName=="th06logo")C2D_DrawRectSolid(0,0,0,320,240,0xffffffff);
-    else if(panel==Panel::Selection)C2D_DrawRectSolid(0,0,0,320,240,0xff000000);
+    else if(panel==Panel::Selection) {
+        C2D_DrawRectSolid(0,0,0,320,240,0xff000000);
+        if(selectionBackdrop)CtrMenuBackdrop::Draw(CtrPresentation::SceneOpacity());
+    }
     else if(surfaceName.starts_with("end") || surfaceName=="staff00")creditsBottom.Draw();
-    else if(replayMenu || surfaceName=="music" || surfaceName=="result")CtrMenuBackdrop::Draw();
+    else if(replayMenu || UsesBackdrop(surfaceName)) {
+        CtrMenuBackdrop::Draw();
+        if(backgroundMix<1 && !replayMenu && !previousSurfaceName.empty())
+            DrawLowerArtwork(previousSurfaceName,unsigned(255*(1-backgroundMix)),previousBrightness);
+    }
     else {
         mainBottom.Draw();
+        if(backgroundMix<1 && UsesBackdrop(previousSurfaceName))CtrMenuBackdrop::Draw(unsigned(255*(1-backgroundMix)));
         if(CtrSelectionReturn::From(STATE_DIFFICULTY_SELECT))
             C2D_DrawRectSolid(0,0,0,320,240,unsigned(255*(1-CtrSelectionReturn::Progress()))<<24);
         Shade(320,240);
@@ -349,6 +415,7 @@ unsigned CtrPresentation::SceneOpacity() {
     return opacity;
 }
 void CtrPresentation::TouchMenu(MainMenu& menu,int x,int y) {
+    if(CtrSelectionFlow::Touch(x,y))return;
     auto press=[&](unsigned button) {g_CurFrameInput|=button;g_LastFrameInput&=~button;};
     if(menu.gameState==STATE_PRE_INPUT) {press(TH_BUTTON_ENTER);return;}
     if(menu.stateTimer<CtrMenuTiming::Frames)return;
@@ -366,4 +433,43 @@ void CtrPresentation::TouchMenu(MainMenu& menu,int x,int y) {
         }
     }
     CtrSelection::Touch(menu,x,y);
+}
+
+void CtrPresentation::SetContentOpacity(float opacity) {contentOpacity=std::clamp(opacity,0.f,1.f);}
+void CtrPresentation::ShowListBox(float left,float top,float right,float bottom,bool moreAbove,bool moreBelow,float opacity) {
+    if(listBoxCount<listBoxes.size())listBoxes[listBoxCount++]={left,top,right,bottom,moreAbove,moreBelow,std::clamp(opacity,0.f,1.f)};
+}
+void CtrPresentation::DrawListBox(C3D_RenderTarget* top) {
+    if(!listBoxCount)return;
+    C2D_SceneBegin(top);
+    for(unsigned i=0;i<listBoxCount;i++) {
+        const auto& box=listBoxes[i];
+        const float origin=CtrMenuCanvas::ScreenLeft();
+        const float left=origin+box.left/2,right=origin+box.right/2,y0=box.top/2,y1=box.bottom/2;
+        C2D_DrawRectSolid(left,y0,0,right-left,y1-y0,C2D_Color32(0,0,0,unsigned(150*box.opacity)));
+        const unsigned color=C2D_Color32(255,255,255,unsigned(200*box.opacity));
+        const float x=right-8,half=4,height=4;
+        if(box.above)C2D_DrawTriangle(x-half,y0+3+height,color,x+half,y0+3+height,color,x,y0+3,color,0);
+        if(box.below)C2D_DrawTriangle(x-half,y1-3-height,color,x+half,y1-3-height,color,x,y1-3,color,0);
+    }
+}
+void CtrPresentation::DrawContentFade(C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
+    if(!artwork.ready)return;
+    if(returnArtwork.ready) {
+        const unsigned cover=unsigned(255*(1-contentOpacity));
+        C2D_SceneBegin(top);returnArtwork.DrawArtwork(cover);
+        C2D_SceneBegin(bottom);mainBottom.Draw(0,0,cover);
+        return;
+    }
+    const bool crossfading=backgroundMix<1 && previousArtwork.ready;
+    const float shown=std::min(contentOpacity,crossfading?backgroundMix:1.f);
+    if(shown>=1)return;
+    const float cover=1-shown,mix=crossfading?backgroundMix:1;
+    const float outgoing=cover*(1-mix),incoming=outgoing<1?cover*mix/(1-outgoing):0;
+    C2D_SceneBegin(top);
+    artwork.DrawArtwork(unsigned(255*incoming));
+    if(crossfading)previousArtwork.DrawArtwork(unsigned(255*outgoing),previousBrightness);
+    C2D_SceneBegin(bottom);
+    DrawLowerArtwork(surfaceName,unsigned(255*incoming));
+    if(crossfading && !previousSurfaceName.empty())DrawLowerArtwork(previousSurfaceName,unsigned(255*outgoing),previousBrightness);
 }
