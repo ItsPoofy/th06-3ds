@@ -18,6 +18,7 @@
 #include "TextHelper.hpp"
 #ifdef __3DS__
 #include "platform/3ds/BossCounters.hpp"
+#include "practice/Th06Run.hpp"
 #include "platform/3ds/BossPresentation.hpp"
 #endif
 
@@ -56,6 +57,7 @@ ZunResult EclManager::Load(const char *eclPath)
         return ZUN_ERROR;
     }
 
+    fileSize=g_LastFileSize;
     this->timelinePtrs[0] = (EclTimelineInstr *)(((u8 *)this->eclFile) + this->eclFile->timelineOffsets[0]);
 
     this->subTable = (EclRawInstr **)malloc(sizeof(EclRawInstr *) * this->eclFile->subCount);
@@ -110,6 +112,9 @@ ZunResult EclManager::CallEclSub(EnemyEclContext *ctx, i16 subId) const
 
 ZunResult EclManager::RunEcl(Enemy *enemy)
 {
+#ifdef __3DS__
+    const bool setup=Practice::Th06Run::Preparing();
+#endif
     EclRawInstr *instruction;
     EclRawInstrArgs *args;
     ZunVec3 local_8;
@@ -140,6 +145,13 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
         }
 
     YOLO:
+#ifdef __3DS__
+        if(setup) {
+            const auto step=Practice::Th06Run::BeforeInstruction(enemy,instruction);
+            if(step==Practice::Th06Run::SetupStep::Stop)return ZUN_SUCCESS;
+            if(step==Practice::Th06Run::SetupStep::Skip)goto NEXT_INSN;
+        }
+#endif
         if (enemy->currentContext.time.current == instruction->time)
         {
             if (!(instruction->skipForDifficulty & (1 << g_GameManager.difficulty)))
@@ -836,6 +848,12 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
                         }
                     }
                     g_EnemyManager.spellcardInfo.isActive = 0;
+#ifdef __3DS__
+                    if(Practice::Th06Run::AttackEnded(enemy,true)) {
+                        g_Stage.spellcardState=NOT_RUNNING;
+                        return ZUN_SUCCESS;
+                    }
+#endif
                 }
                 g_Stage.spellcardState = NOT_RUNNING;
                 break;

@@ -1,7 +1,9 @@
 #include "RecordsPanel.hpp"
 #include "MenuTiming.hpp"
 #include "PracticeSelection.hpp"
+#include "PracticeMenu.hpp"
 #include "SelectionFlow.hpp"
+#include "MenuTypeface.hpp"
 #include "Presentation.hpp"
 #include "DisplaySettings.hpp"
 #include "Settings.hpp"
@@ -76,7 +78,7 @@ Texture artwork,mainBottom,creditsBottom,material,font,contentFont;
 bool menuAssetsReady=false;
 bool EnsureMenuAssets() {
     if(menuAssetsReady)return true;
-    menuAssetsReady=CtrPractice::Initialize() && mainBottom.Load("Bottom Screen Main Menu") && creditsBottom.Load("Bottom Screen Credits") &&
+    menuAssetsReady=CtrMenuTypeface::Initialize() && CtrPractice::Initialize() && mainBottom.Load("Bottom Screen Main Menu") && creditsBottom.Load("Bottom Screen Credits") &&
         CtrCharacterPortraits::Initialize();
     return menuAssetsReady;
 }
@@ -156,11 +158,15 @@ void CtrPresentation::ReleaseMenuAssets() {
     if(!menuAssetsReady)return;
     C3D_FrameSync();
     for(Texture* t:{&previousArtwork,&artwork,&returnArtwork,&mainBottom,&creditsBottom})t->Clear();
-    CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();
+    CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrMenuTypeface::Shutdown();
     surfaceName.clear();surfaceVariant.clear();menuAssetsReady=false;
 }
+void CtrPresentation::ReleaseMenuText() {
+    if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
+    CtrPractice::Shutdown();CtrMenuTypeface::Shutdown();menuAssetsReady=false;
+}
 void CtrPresentation::Shutdown() {
-    CtrDecorations::Shutdown();CtrSelectionArt::Shutdown();CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrHud::Shutdown();
+    CtrDecorations::Shutdown();CtrSelectionArt::Shutdown();CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrMenuTypeface::Shutdown();CtrHud::Shutdown();
     for(Texture* t:{&previousArtwork,&artwork,&returnArtwork,&mainBottom,&creditsBottom,&material,&font,&contentFont})t->Clear();
     menuAssetsReady=false;surfaceName.clear();surfaceVariant.clear();
 }
@@ -396,7 +402,8 @@ void CtrPresentation::DrawMenu(C3D_RenderTarget* bottom) {
 
 bool CtrPresentation::IsSelection(const MainMenu& menu) {
     return menu.gameState==STATE_DIFFICULTY_SELECT || menu.gameState==STATE_CHARACTER_SELECT ||
-        menu.gameState==STATE_SHOT_SELECT || menu.gameState==STATE_PRACTICE_LVL_SELECT;
+        menu.gameState==STATE_SHOT_SELECT || menu.gameState==STATE_PRACTICE_LVL_SELECT ||
+        menu.gameState==STATE_PRACTICE_TYPE || menu.gameState==STATE_PRACTICE_SETUP;
 }
 void CtrPresentation::DrawOverlays(C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
     for(unsigned i=0;i<overlayCount;i++) {
@@ -416,6 +423,7 @@ unsigned CtrPresentation::SceneOpacity() {
 }
 void CtrPresentation::TouchMenu(MainMenu& menu,int x,int y) {
     if(CtrSelectionFlow::Touch(x,y))return;
+    if(CtrPracticeMenu::Touch(menu,x,y))return;
     auto press=[&](unsigned button) {g_CurFrameInput|=button;g_LastFrameInput&=~button;};
     if(menu.gameState==STATE_PRE_INPUT) {press(TH_BUTTON_ENTER);return;}
     if(menu.stateTimer<CtrMenuTiming::Frames)return;

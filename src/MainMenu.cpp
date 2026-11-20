@@ -21,12 +21,15 @@
 #include "platform/3ds/Controls.hpp"
 #include "platform/3ds/MenuAnimation.hpp"
 #include "platform/3ds/GameLoop.hpp"
+#include "platform/3ds/Runtime.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/OptionsMenu.hpp"
 #include "platform/3ds/TitleLogo.hpp"
 #include "platform/3ds/SelectionLayout.hpp"
 #include "platform/3ds/PracticeSelection.hpp"
+#include "platform/3ds/PracticeMenu.hpp"
 #include "platform/3ds/NdspAudio.hpp"
+#include "practice/Session.hpp"
 #include "platform/3ds/StageScores.hpp"
 #include "platform/3ds/SelectionReturn.hpp"
 #include "platform/3ds/SelectionFlow.hpp"
@@ -50,6 +53,13 @@ constexpr int MenuDuration(int nativeFrames) {
     return nativeFrames;
 #endif
 }
+static bool CustomPracticeSelection() {
+#ifdef __3DS__
+    return g_GameManager.isInPracticeMode && Practice::Current().Custom();
+#else
+    return false;
+#endif
+}
 #ifdef __3DS__
 static CtrMenuTiming::Clock g_MenuAnimationClocks[122];
 static bool g_ReturnToMenuList = false;
@@ -61,6 +71,16 @@ MainMenu::MainMenu()
 {
     int waste1, waste2, waste3, waste4;
 }
+#ifdef __3DS__
+void MainMenu::ReturnSelectionToTitle(i32 cursor)
+{
+    CtrSelectionFlow::Reset();
+    CtrPresentation::PrepareReturn("data/title/title00.jpg");
+    selectionLeaveCursor=cursor;
+    selectionLeaveFrame=1;
+    CtrGameLoop::ResetClock();
+}
+#endif
 
 ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
 {
@@ -118,6 +138,17 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         }
     }
 #ifdef __3DS__
+    if(menu->selectionLeaveFrame>0) {
+        if(++menu->selectionLeaveFrame>CtrMenuTiming::Frames) {
+            const int cursor=menu->selectionLeaveCursor;
+            menu->selectionLeaveFrame=0;
+            if(menu->BeginStartup()!=ZUN_SUCCESS)return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
+            menu->gameState=STATE_MAIN_MENU;menu->stateTimer=0;menu->cursor=cursor;
+            for(auto& vm:menu->vm)vm.pendingInterrupt=2;
+            CtrTitleLogo::Return(*menu);
+        }
+        return CHAIN_CALLBACK_RESULT_CONTINUE;
+    }
     int touchX=0,touchY=0;
     if(CtrTouch::Tap(touchX,touchY)) CtrPresentation::TouchMenu(*menu,touchX,touchY);
     const bool selectionBlocked=CtrSelectionFlow::Update(*menu);
@@ -130,6 +161,46 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
     {
     case STATE_STARTUP:
 #ifdef __3DS__
+        if (Practice::Current().reopen)
+        {
+            auto &session = Practice::Current();
+            session.reopen = false;
+            g_ReturnToMenuList = false;
+            g_GameManager.isInPracticeMode = 1;
+            if (LoadDiffCharSelect(menu) != ZUN_SUCCESS)
+            {
+                g_GameErrorContext.Log(TH_ERR_MAINMENU_LOAD_SELECT_SCREEN_FAILED);
+                g_Supervisor.curState = SUPERVISOR_STATE_EXITSUCCESS;
+                return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
+            }
+            for (auto &vm : menu->vm)
+            {
+                vm.pendingInterrupt = 19;
+            }
+            menu->vm[81 + g_GameManager.difficulty].pendingInterrupt = 0;
+            for (i = 0; i < 2; i++)
+            {
+                if (i != g_GameManager.character)
+                {
+                    menu->vm[86 + i * 2].pendingInterrupt = menu->vm[87 + i * 2].pendingInterrupt = 0;
+                    menu->vm[92 + i * 2].pendingInterrupt = menu->vm[93 + i * 2].pendingInterrupt = 0;
+                }
+            }
+            menu->minimumOpacity = 0;
+            menu->numFramesSinceActive = 0;
+            menu->framesActive = 0;
+            menu->stateTimer = 0;
+            if (session.Custom())
+            {
+                CtrPracticeMenu::OpenSetup(*menu, true);
+            }
+            else
+            {
+                menu->gameState = STATE_PRACTICE_LVL_SELECT;
+                menu->cursor = g_GameManager.menuCursorBackup;
+            }
+            break;
+        }
         if (g_ReturnToMenuList)
         {
             g_ReturnToMenuList = false;
@@ -343,6 +414,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
             }
             menu->gameState = STATE_DIFFICULTY_SELECT;
 #ifdef __3DS__
+            if(g_GameManager.isInPracticeMode && Practice::Current().mode==Practice::Mode::None)menu->gameState=STATE_PRACTICE_TYPE;
             menu->stateTimer=0;
 #endif
             menu->minimumOpacity = 0;
@@ -370,26 +442,51 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
             break;
         }
     case STATE_CHARACTER_LOAD:
-#ifdef __3DS__
-        if(CtrSelectionReturn::From(STATE_DIFFICULTY_SELECT)) {
-            if(menu->BeginStartup()!=ZUN_SUCCESS)return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
-            menu->gameState=STATE_MAIN_MENU;menu->stateTimer=0;
-            for(auto& vm:menu->vm)vm.pendingInterrupt=2;
-            CtrTitleLogo::Return(*menu);
-            break;
-        }
-#endif
         if (menu->stateTimer == MenuDuration(36))
         {
             menu->gameState = STATE_STARTUP;
             menu->stateTimer = 0;
         }
         break;
+#ifdef __3DS__
+    case STATE_PRACTICE_TYPE: {
+        if(Practice::Current().mode==Practice::Mode::None && menu->stateTimer<=1)menu->cursor=Practice::Current().previous==Practice::Mode::Custom?1:0;
+        const int choice=CtrPracticeMenu::ChooseMode(*menu);
+        if(choice<0) {
+            menu->ReturnSelectionToTitle(2);
+        }
+        if(choice>0){menu->gameState=STATE_DIFFICULTY_SELECT;menu->stateTimer=0;menu->cursor=std::clamp(int(g_GameManager.difficulty),0,CustomPracticeSelection()?4:3);}
+        break;
+    }
+    case STATE_PRACTICE_SETUP:
+        if(selectionStart) {
+            g_GameManager.currentStage=Practice::Current().stage-1;
+            g_GameManager.menuCursorBackup=g_GameManager.currentStage;
+            goto something;
+        }
+        if(CtrPracticeMenu::Update(*menu)<0)goto practiceReturn;
+        break;
+#endif
     case STATE_DIFFICULTY_SELECT:
+#ifdef __3DS__
+        if(g_GameManager.isInPracticeMode && WAS_PRESSED(TH_BUTTON_RETURNMENU)) {
+            menu->gameState=STATE_PRACTICE_TYPE;menu->stateTimer=0;
+            menu->cursor=Practice::Current().Custom()?1:0;
+            CtrSelectionFlow::Reset();break;
+        }
+#endif
         vmList = &menu->vm[81];
-        if (g_GameManager.difficulty < 4)
+        if (g_GameManager.difficulty < 4
+#ifdef __3DS__
+            || (g_GameManager.isInPracticeMode && Practice::Current().Custom())
+#endif
+        )
         {
-            MoveCursor(menu, 4);
+            MoveCursor(menu,
+#ifdef __3DS__
+                g_GameManager.isInPracticeMode && Practice::Current().Custom()?5:
+#endif
+                4);
             for (i = 0; i < 4; i++, vmList++)
             {
                 if (i != menu->cursor)
@@ -450,6 +547,12 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         }
         if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
         {
+#ifdef __3DS__
+            if(g_GameManager.difficulty<EXTRA)g_Supervisor.cfg.defaultDifficulty=menu->cursor;
+            menu->ReturnSelectionToTitle(g_GameManager.difficulty==EXTRA?1:0);
+            g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);
+            break;
+#endif
             menu->gameState = STATE_CHARACTER_LOAD;
             menu->stateTimer = 0;
             for (i = 0; i < ARRAY_SIZE_SIGNED(menu->vm); i++)
@@ -487,7 +590,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                 menu->vm[i].pendingInterrupt = 7;
             }
             g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
-            if (g_GameManager.difficulty < 4)
+            if (g_GameManager.difficulty < 4 || CustomPracticeSelection())
             {
                 vmList = &menu->vm[81 + menu->cursor];
                 vmList->pendingInterrupt = 8;
@@ -532,7 +635,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
             {
                 menu->cursor = menu->cursor - 2;
             }
-            if (g_GameManager.difficulty == EXTRA && g_GameManager.HasReachedMaxClears(menu->cursor, 0) == 0 &&
+            if (g_GameManager.difficulty == EXTRA && !CustomPracticeSelection() && g_GameManager.HasReachedMaxClears(menu->cursor, 0) == 0 &&
                 g_GameManager.HasReachedMaxClears(menu->cursor, 1) == 0)
             {
                 menu->cursor = menu->cursor - 1;
@@ -567,7 +670,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
             {
                 menu->cursor = menu->cursor + 2;
             }
-            if (g_GameManager.difficulty == EXTRA && g_GameManager.HasReachedMaxClears(menu->cursor, 0) == 0 &&
+            if (g_GameManager.difficulty == EXTRA && !CustomPracticeSelection() && g_GameManager.HasReachedMaxClears(menu->cursor, 0) == 0 &&
                 g_GameManager.HasReachedMaxClears(menu->cursor, 1) == 0)
             {
                 menu->cursor = menu->cursor + 1;
@@ -616,7 +719,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                 {
                     menu->vm[i].pendingInterrupt = 18;
                 }
-                menu->cursor = 0;
+                menu->cursor = CustomPracticeSelection()?4:0;
             }
 #ifdef __3DS__
             if(!CtrSelectionFlow::ReturnDelivered())
@@ -656,7 +759,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                 }
             }
             g_GameManager.character = menu->cursor;
-            if (g_GameManager.difficulty < 4)
+            if (g_GameManager.difficulty < 4 || CustomPracticeSelection())
             {
                 menu->cursor = g_GameManager.shotType;
             }
@@ -676,7 +779,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         break;
     case STATE_SHOT_SELECT:
         MoveCursor(menu, 2);
-        if (g_GameManager.difficulty == EXTRA &&
+        if (g_GameManager.difficulty == EXTRA && !CustomPracticeSelection() &&
             g_GameManager.HasReachedMaxClears(g_GameManager.character, menu->cursor) == 0)
         {
             menu->cursor = 1 - menu->cursor;
@@ -862,6 +965,9 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                     vmList[1].pendingInterrupt = 0;
                 }
             }
+#ifdef __3DS__
+            if(Practice::Current().Custom()){CtrPracticeMenu::OpenSetup(*menu);break;}
+#endif
             menu->cursor = g_GameManager.menuCursorBackup;
             local_4c = g_GameManager.clrd[g_GameManager.CharacterShotType()]
                                    .difficultyClearedWithoutRetries[g_GameManager.difficulty] > 6
@@ -901,6 +1007,9 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         }
         if (WAS_PRESSED(TH_BUTTON_RETURNMENU))
         {
+#ifdef __3DS__
+        practiceReturn:
+#endif
             menu->gameState = STATE_SHOT_SELECT;
             menu->stateTimer = 0;
             for (i = 0; i < ARRAY_SIZE_SIGNED(menu->vm); i++)
@@ -1131,6 +1240,7 @@ ZunResult MainMenu::BeginStartup()
 {
 #ifdef __3DS__
     CtrSelectionFlow::Reset();
+    CtrSelection::Reset();
     CtrTitleLogo::Reset();
 #endif
     ZunVec3 vector3Ptr;
@@ -1172,6 +1282,7 @@ ZunResult MainMenu::BeginStartup()
     }
     this->gameState = STATE_PRE_INPUT;
 #ifdef __3DS__
+    CtrRuntime::Log("Title menu ready");
     CtrGameLoop::ResetClock();
 #endif
     return ZUN_SUCCESS;
@@ -1297,6 +1408,9 @@ ZunResult MainMenu::DrawStartMenu(void)
                 }
                 break;
             case 2:
+#ifdef __3DS__
+                CtrPracticeMenu::Begin();
+#endif
                 g_GameManager.isInPracticeMode = 1;
                 for (i = 0; i < ARRAY_SIZE_SIGNED(this->vm); i++)
                 {
@@ -2097,6 +2211,8 @@ ChainCallbackResult MainMenu::OnDraw(MainMenu *menu)
     }
 #ifdef __3DS__
     CtrPresentation::CaptureMenu(*menu);
+    if(menu->selectionLeaveFrame>0)
+        CtrPresentation::SetContentOpacity(1-CtrMenuTiming::Progress(menu->selectionLeaveFrame));
 #endif
     mgr = g_AnmManager;
     mgr->currentTextureHandle = 0;
@@ -2242,6 +2358,10 @@ ZunResult MainMenu::LoadTitleAnm(MainMenu *menu)
 
 ZunResult MainMenu::LoadDiffCharSelect(MainMenu *menu)
 {
+#ifdef __3DS__
+    CtrSelectionFlow::Reset();
+    CtrSelection::Reset();
+#endif
     AnmVm *vm;
     i32 i;
 
@@ -2401,7 +2521,6 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
     g_ReturnToMenuList = g_Supervisor.wantedState2 == SUPERVISOR_STATE_RESULTSCREEN ||
                          g_Supervisor.wantedState2 == SUPERVISOR_STATE_MUSICROOM;
 #endif
-
     switch (g_Supervisor.wantedState2)
     {
     case SUPERVISOR_STATE_GAMEMANAGER:
@@ -2444,6 +2563,7 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
     m->unk_10f28 = 0x10;
     m->currentReplay = NULL;
     scoredat = ResultScreen::OpenScore("score.dat");
+    ResultScreen::ParseCatk(scoredat, g_GameManager.catk);
     ResultScreen::ParseClrd(scoredat, g_GameManager.clrd);
     ResultScreen::ParsePscr(scoredat, (Pscr *)g_GameManager.pscr);
 #ifdef __3DS__
@@ -2485,6 +2605,9 @@ ZunResult MainMenu::DeletedCallback(MainMenu *menu)
     i32 i1, i2;
 
     MainMenu::ReleaseTitleAnm();
+#ifdef __3DS__
+    CtrPresentation::ReleaseMenuText();
+#endif
     for (i1 = ANM_FILE_SELECT01; i1 <= ANM_FILE_REPLAY; i1++)
     {
         g_AnmManager->ReleaseAnm(i1);

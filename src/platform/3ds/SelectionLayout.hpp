@@ -4,6 +4,7 @@ struct MainMenu;
 namespace CtrSelection {
 inline constexpr float ScoreboardX=464,ScoreboardY=240;
 void BeginScene();
+void Reset();
 void BeginReturn(const MainMenu& menu);
 void Draw(const MainMenu& menu);
 void DrawTopScene(const MainMenu& menu);

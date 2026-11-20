@@ -676,6 +676,12 @@ void GuiImpl::MsgRead(i32 msgIdx)
     this->msg.textColorsB[0] = 0;
     this->msg.textColorsB[1] = 0;
     this->msg.dialogueSkippable = 1;
+    g_Gui.PrepareBossAnimations(msgIdx);
+    return;
+}
+
+void Gui::PrepareBossAnimations(i32 msgIdx) const
+{
     if (g_GameManager.currentStage == 6 && (msgIdx == 0 || msgIdx == 10))
     {
         g_AnmManager->LoadAnm(ANM_FILE_EFFECTS, "data/eff06.anm", ANM_OFFSET_EFFECTS);
@@ -685,8 +691,29 @@ void GuiImpl::MsgRead(i32 msgIdx)
         g_AnmManager->LoadAnm(ANM_FILE_EFFECTS, "data/eff07.anm", ANM_OFFSET_EFFECTS);
         g_AnmManager->LoadAnm(ANM_FILE_FACE_STAGE_A, "data/face12c.anm", ANM_OFFSET_FACE_STAGE_A);
     }
-    return;
 }
+
+#ifdef __3DS__
+void Gui::HideStageTitle() const
+{
+    this->impl->stageNameSprite.flags.isVisible = 0;
+    this->impl->stageNameSprite.currentInstruction = NULL;
+    this->impl->songNameSprite.flags.isVisible = 0;
+    this->impl->songNameSprite.currentInstruction = NULL;
+}
+
+void Gui::ShowSongTitle(i32 song) const
+{
+    g_AnmManager->SetAndExecuteScriptIdx(&this->impl->songNameSprite, 0x701);
+    CtrPlayfieldText::CueMusic();
+    this->impl->songNameSprite.fontWidth = 16;
+    this->impl->songNameSprite.fontHeight = 16;
+    char songTitle[512];
+    std::snprintf(songTitle, sizeof(songTitle), TH_SONG_NAME, g_Stage.stdData->songNames[song]);
+    TextHelper::Wrapped(&this->impl->songNameSprite, songTitle, COLOR_RGB(COLOR_LIGHTCYAN), COLOR_RGB(COLOR_BLACK), 280,
+                        true, false, false, false, TextHelper::FontRole::MusicTitle);
+}
+#endif
 
 ZunResult GuiImpl::RunMsg()
 {

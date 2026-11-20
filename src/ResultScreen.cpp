@@ -19,6 +19,9 @@
 #include "GameManager.hpp"
 #include "Player.hpp"
 #include "ReplayManager.hpp"
+#ifdef __3DS__
+#include "practice/Session.hpp"
+#endif
 #include "Rng.hpp"
 #include "SoundPlayer.hpp"
 #include "Stage.hpp"
@@ -1629,6 +1632,10 @@ u32 ResultScreen::DrawFinalStats() const
 
 ZunResult ResultScreen::RegisterChain(i32 unk)
 {
+#ifdef __3DS__
+    if(unk && g_GameManager.isInPracticeMode && !g_GameManager.isInReplay && Practice::Current().Custom())
+        Practice::Current().reopen=true;
+#endif
 
     i32 unused[16];
     ResultScreen *resultScreen;
@@ -2551,6 +2558,9 @@ ZunResult ResultScreen::AddedCallback(ResultScreen *resultScreen)
     }
 
     if (resultScreen->resultScreenState == RESULT_SCREEN_STATE_EXIT &&
+#ifdef __3DS__
+        Practice::Current().SavesPoints() &&
+#endif
         g_GameManager.currentStage>=1 && g_GameManager.currentStage<=PSCR_NUM_STAGES &&
         g_GameManager.difficulty<PSCR_NUM_DIFFICULTIES &&
         g_GameManager.pscr[g_GameManager.CharacterShotType()][g_GameManager.currentStage - 1][g_GameManager.difficulty]

@@ -150,6 +150,12 @@ struct Gui
     void DrawGameScene();
 
     void MsgRead(i32 msgIdx) const;
+    void PrepareBossAnimations(i32 msgIdx) const;
+#ifdef __3DS__
+    // Practice starts at a boss skip the stage's opening title and song caption.
+    void HideStageTitle() const;
+    void ShowSongTitle(i32 song) const;
+#endif
     bool MsgWait() const;
 
     void ShowSpellcard(i32 spellcardSprite, const char *spellcardName);

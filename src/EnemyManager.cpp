@@ -1,5 +1,6 @@
 #include "EnemyManager.hpp"
 #ifdef __3DS__
+#include "practice/Th06Run.hpp"
 #include "platform/3ds/BossPresentation.hpp"
 #include "platform/3ds/BossCounters.hpp"
 #include "platform/3ds/BossHealthBar.hpp"
@@ -119,6 +120,9 @@ Enemy *EnemyManager::SpawnEnemy(i32 eclSubId, const ZunVec3 *pos, i16 life, i16 
             newEnemy->score = score;
 
         newEnemy->maxLife = newEnemy->life;
+#ifdef __3DS__
+        Practice::Th06Run::Spawned(newEnemy,eclSubId);
+#endif
         break;
     }
     return newEnemy;
@@ -563,11 +567,19 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
         }
         if (0 <= curEnemy->lifeCallbackThreshold)
         {
-            curEnemy->HandleLifeCallback();
+            if(curEnemy->HandleLifeCallback()) {
+#ifdef __3DS__
+                if(Practice::Th06Run::AttackEnded(curEnemy,false))continue;
+#endif
+            }
         }
         if (0 <= curEnemy->timerCallbackThreshold)
         {
-            curEnemy->HandleTimerCallback();
+            if(curEnemy->HandleTimerCallback()) {
+#ifdef __3DS__
+                if(Practice::Th06Run::AttackEnded(curEnemy,false))continue;
+#endif
+            }
         }
         if (g_EclManager.RunEcl(curEnemy) == ZUN_ERROR)
         {
@@ -727,6 +739,9 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
                     g_EclManager.CallEclSub(&curEnemy->currentContext, curEnemy->deathCallbackSub);
                     curEnemy->deathCallbackSub = -1;
                 }
+#ifdef __3DS__
+                if(Practice::Th06Run::AttackEnded(curEnemy,false))continue;
+#endif
             }
             if (curEnemy->flags.isBoss != 0 && !g_Gui.HasCurrentMsgIdx())
             {
@@ -758,6 +773,9 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
         }
     }
     mgr->timelineTime.Tick();
+#ifdef __3DS__
+    Practice::Th06Run::Tick();
+#endif
     return CHAIN_CALLBACK_RESULT_CONTINUE;
 }
 

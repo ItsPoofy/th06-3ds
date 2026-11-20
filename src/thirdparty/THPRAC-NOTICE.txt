@@ -1,0 +1,6 @@
+TH06 practice section names, difficulty and shot-route tables, supported spell
+phases, and stage-portion timings are adapted from thprac.
+
+Project: https://github.com/touhouworldcup/thprac
+Revision: 18b8f4968591d2c90f4dffcb57c0ad6d306ee59b
+Sources: thprac/src/thprac_games_def.json and thprac/src/thprac_th06.cpp

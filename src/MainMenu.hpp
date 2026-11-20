@@ -29,6 +29,8 @@ enum GameState
     STATE_REPLAY_SELECT,
     STATE_MUSIC_ROOM,
     STATE_PRACTICE_LVL_SELECT,
+    STATE_PRACTICE_TYPE,
+    STATE_PRACTICE_SETUP,
 };
 
 enum CursorMovement
@@ -60,6 +62,9 @@ struct MainMenu
     ZunResult DrawReplayMenu() const;
     ZunResult ChoosePracticeLevel() const;
     bool WeirdSecondInputCheck();
+#ifdef __3DS__
+    void ReturnSelectionToTitle(i32 cursor);
+#endif
     void ColorMenuItem(AnmVm *, i32, i32, i32) const;
 
     static ZunResult LoadTitleAnm(MainMenu *menu);
@@ -115,6 +120,10 @@ struct MainMenu
     u32 unk_10f28;
     i32 frameCountForRefreshRateCalc;
     u32 lastFrameTime;
+#ifdef __3DS__
+    i32 selectionLeaveFrame;
+    i32 selectionLeaveCursor;
+#endif
 };
 
 extern MainMenu g_MainMenu;

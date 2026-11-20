@@ -1,5 +1,7 @@
 #include "GameManager.hpp"
 #ifdef __3DS__
+#include "practice/Session.hpp"
+#include "practice/Th06Run.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/PauseMenu.hpp"
 #include "platform/3ds/StageScores.hpp"
@@ -334,7 +336,7 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
         ResultScreen::ParseCatk(scoredat, mgr->catk);
         ResultScreen::ParseClrd(scoredat, mgr->clrd);
         ResultScreen::ParsePscr(scoredat, (Pscr *)mgr->pscr);
-        if (mgr->isInPracticeMode != 0)
+        if (mgr->isInPracticeMode != 0 && mgr->difficulty<EXTRA && mgr->currentStage<6)
         {
             g_GameManager.highScore =
                 mgr->pscr[g_GameManager.CharacterShotType()][g_GameManager.currentStage][g_GameManager.difficulty]
@@ -353,12 +355,19 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
         mgr->guiScore = mgr->score;
         mgr->nextScoreIncrement = 0;
     }
+#ifdef __3DS__
+    if(!mgr->isInPracticeMode || mgr->isInReplay)Practice::Reset();
+#endif
     mgr->subRank = 0;
     mgr->pointItemsCollectedInStage = 0;
     mgr->grazeInStage = 0;
     mgr->isInGameMenu = 0;
     mgr->currentStage = mgr->currentStage + 1;
-    if (g_GameManager.isInReplay == 0)
+    if (g_GameManager.isInReplay == 0
+#ifdef __3DS__
+        && Practice::Current().SavesPoints()
+#endif
+    )
     {
         clrdIdx = g_GameManager.CharacterShotType();
         if (mgr->numRetries == 0 &&
@@ -438,7 +447,11 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
         g_GameErrorContext.Log(TH_ERR_GAMEMANAGER_FAILED_TO_INITIALIZE_GUI);
         return ZUN_ERROR;
     }
-    if (g_GameManager.isInReplay == 0)
+    if (g_GameManager.isInReplay == 0
+#ifdef __3DS__
+        && !Practice::Current().Custom()
+#endif
+    )
     {
         ReplayManager::RegisterChain(0, "replay/th6_00.rpy");
     }
@@ -466,6 +479,12 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
         g_Supervisor.curState = SUPERVISOR_STATE_MAINMENU;
     }
     g_Supervisor.unk198 = 3;
+#ifdef __3DS__
+    if(!Practice::Th06Run::Begin()) {
+        g_GameErrorContext.Log("The selected practice section could not be initialized\n");
+        g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+    }
+#endif
     return ZUN_SUCCESS;
 }
 
@@ -480,6 +499,9 @@ ZunResult GameManager::DeletedCallback(GameManager *mgr)
     {
         g_Supervisor.StopAudio();
     }
+#ifdef __3DS__
+    Practice::Th06Run::End();
+#endif
     Stage::CutChain();
     BulletManager::CutChain();
     Player::CutChain();

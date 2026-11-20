@@ -10,10 +10,15 @@
 #include "AnmManager.hpp"
 #include "LatchedInput.hpp"
 #include "utils.hpp"
+#include "practice/Session.hpp"
 #include <algorithm>
 namespace {
-enum State {Closed,Choices,ConfirmQuit,ConfirmRestart};
-enum Action {Resume,Quit,Restart};
+enum State {Closed,Choices,ConfirmQuit,ConfirmRestart,ConfirmPractice};
+enum Action {Resume,Quit,Restart,ReturnPractice};
+bool PracticeRun() {return g_GameManager.isInPracticeMode && !g_GameManager.isInReplay;}
+int ChoiceCount() {return PracticeRun()?4:3;}
+int ChoiceAt(int row) {return PracticeRun() || row==0?row:row+1;}
+float ChoiceY(int row) {return (PracticeRun()?64:80)+32*row;}
 State state=Closed;Action action=Resume;
 StageMenu* active=nullptr;CtrMenuTiming::Clock clocks[6];
 int cursor=0,closeFrame=0;bool yes=false,pendingRestart=false,closing=false;
@@ -65,6 +70,7 @@ int CtrPause::Update(StageMenu& menu) {
             const Action next=action;Close(menu);closing=false;
             if(next==Restart) {pendingRestart=true;g_Supervisor.curState=SUPERVISOR_STATE_GAMEMANAGER_REINIT;}
             else if(next==Quit)g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+            else if(next==ReturnPractice) {Practice::Current().reopen=true;g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;}
         }
         return 0;
     }
@@ -79,14 +85,16 @@ int CtrPause::Update(StageMenu& menu) {
     }
     if(state==Choices) {
         const int before=cursor;
-        if(WAS_PRESSED_PERIODIC(TH_BUTTON_UP))cursor=(cursor+2)%3;
-        if(WAS_PRESSED_PERIODIC(TH_BUTTON_DOWN))cursor=(cursor+1)%3;
-        if(tap && x>=14 && x<=306 && y>=76 && y<172) {cursor=(y-76)/32;accept=true;}
+        const int count=ChoiceCount(),top=int(ChoiceY(0))-4;
+        if(WAS_PRESSED_PERIODIC(TH_BUTTON_UP))cursor=(cursor+count-1)%count;
+        if(WAS_PRESSED_PERIODIC(TH_BUTTON_DOWN))cursor=(cursor+1)%count;
+        if(tap && x>=14 && x<=306 && y>=top && y<top+32*count) {cursor=(y-top)/32;accept=true;}
         if(cursor!=before)g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
         if(accept) {
             g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
-            if(cursor==0)BeginClose(Resume,menu);
-            else {Open(cursor==1?ConfirmQuit:ConfirmRestart,menu);yes=false;}
+            const int choice=ChoiceAt(cursor);
+            if(choice==0)BeginClose(Resume,menu);
+            else {Open(choice==1?ConfirmPractice:choice==2?ConfirmQuit:ConfirmRestart,menu);yes=false;}
         }
     } else {
         const bool before=yes;
@@ -95,7 +103,7 @@ int CtrPause::Update(StageMenu& menu) {
         if(yes!=before)g_SoundPlayer.PlaySoundByIdx(SOUND_MOVE_MENU);
         if(accept) {
             g_SoundPlayer.PlaySoundByIdx(yes?SOUND_SELECT:SOUND_BACK);
-            if(!yes)Open(Choices,menu);else BeginClose(state==ConfirmRestart?Restart:Quit,menu);
+            if(!yes)Open(Choices,menu);else BeginClose(state==ConfirmRestart?Restart:state==ConfirmPractice?ReturnPractice:Quit,menu);
         }
     }
     return 0;
@@ -106,9 +114,8 @@ void CtrPause::Draw(C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
     Text("Paused",200,108,0);
     C2D_SceneBegin(bottom);C2D_DrawRectSolid(0,0,0,320,240,0xd9000000);
     if(state==Choices) {
-        Text("Resume",160,80,1,cursor==0);
-        Text("Return to Title",160,112,2,cursor==1);
-        Text("Restart from Beginning",160,144,2,cursor==2);
+        static const char* labels[]={"Resume","Return to Practice","Return to Title","Restart from Beginning"};
+        for(int row=0;row<ChoiceCount();row++)Text(labels[ChoiceAt(row)],160,ChoiceY(row),row==0?1:2,cursor==row);
     } else {
         Text("Are you sure?",160,76,3);
         Text("Yes",100,122,4,yes);Text("No",220,122,5,!yes);

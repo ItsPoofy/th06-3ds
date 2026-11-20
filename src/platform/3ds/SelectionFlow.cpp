@@ -7,6 +7,8 @@
 #include "Presentation.hpp"
 #include "SelectionLayout.hpp"
 #include "PracticeSelection.hpp"
+#include "PracticeMenu.hpp"
+#include "practice/Session.hpp"
 #include "SelectionReturn.hpp"
 #include "utils.hpp"
 #include <algorithm>
@@ -53,6 +55,7 @@ bool CtrSelectionFlow::Update(MainMenu& menu) {
     if(returning) {CtrSelectionReturn::Advance();if(++returnFrame>=CtrMenuTiming::Frames)returning=false;else return selection;}
     if(selection && !active) {
         if(menu.stateTimer>=CtrMenuTiming::Frames && WAS_PRESSED(TH_BUTTON_RETURNMENU)) {
+            if(menu.gameState==STATE_DIFFICULTY_SELECT && !g_GameManager.isInPracticeMode)return false;
             CtrSelection::BeginReturn(menu);returning=true;returnDelivered=true;returnFrame=0;returnSource=menu.gameState;
             characterQueued=false;g_SoundPlayer.PlaySoundByIdx(SOUND_BACK);return false;
         }
@@ -66,7 +69,7 @@ bool CtrSelectionFlow::Update(MainMenu& menu) {
         } else if(menu.stateTimer>=CtrMenuTiming::Frames && WAS_PRESSED(TH_BUTTON_SELECTMENU) && !CharacterReady(menu))return true;
         return false;
     }
-    const bool canStart=(menu.gameState==STATE_SHOT_SELECT && !g_GameManager.isInPracticeMode) || (menu.gameState==STATE_PRACTICE_LVL_SELECT && CtrPractice::Available(menu.cursor));
+    const bool canStart=(menu.gameState==STATE_SHOT_SELECT && !g_GameManager.isInPracticeMode) || (menu.gameState==STATE_PRACTICE_LVL_SELECT && !Practice::Current().Custom() && CtrPractice::Available(menu.cursor)) || CtrPracticeMenu::CanStart(menu);
     if(!canStart) {Reset();return false;}
     if(!active) {
         if(menu.stateTimer>=CtrMenuTiming::Frames && WAS_PRESSED(TH_BUTTON_SELECTMENU)) {Open();return true;}

@@ -1,4 +1,6 @@
 #include "PracticeSelection.hpp"
+#include "practice/Th06.hpp"
+#include "MenuTypeface.hpp"
 #include "Presentation.hpp"
 #include "PackedTexture.hpp"
 #include "NativeImage.hpp"
@@ -9,10 +11,12 @@
 #include "GameManager.hpp"
 #include "MainMenu.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <string>
 namespace {
 CtrAssets::PackedTexture atlas;
+constexpr float DescriptionTop=114;
 void Label(const char* text,float x,float y,bool selected,unsigned alpha,bool centered,bool enabled=true) {
     for(const auto& label:CtrPracticeAssets::labels)if(!std::strcmp(label.text,text)) {
         if(!atlas.ready)return;
@@ -30,14 +34,30 @@ void Label(const char* text,float x,float y,bool selected,unsigned alpha,bool ce
 }
 bool CtrPractice::Initialize() {return atlas.ready || atlas.Load(TH06_ASSET_ROOT "ui/practice-font.bin");}
 void CtrPractice::Shutdown() {atlas.Clear();}
-int CtrPractice::Count() {return 6;}
+int CtrPractice::Count() {return g_GameManager.difficulty==EXTRA?1:6;}
 int CtrPractice::UnlockedCount() {
+    auto& session=Practice::Current();session.difficulty=g_GameManager.difficulty;session.shot=g_GameManager.CharacterShotType();
+    if(g_GameManager.difficulty==EXTRA)return 1;
+    if(session.Custom())return Count();
     return std::clamp(int(g_GameManager.clrd[g_GameManager.CharacterShotType()].difficultyClearedWithoutRetries[g_GameManager.difficulty]),1,g_GameManager.difficulty==EASY?5:6);
 }
-bool CtrPractice::Available(int stage) {return stage>=0 && stage<UnlockedCount();}
+bool CtrPractice::Available(int stage) {return stage>=0 && stage<UnlockedCount() && (!Practice::Current().Custom() || Practice::Th06::StageAvailable(g_GameManager.difficulty==EXTRA?7:stage+1));}
+void CtrPractice::DrawDescription(int type,unsigned alpha,float slide) {
+    if(!alpha || !atlas.ready)return;
+    const auto name=std::string("practice-description")+std::to_string(type)+"-native"+(CtrSettings::English()?"-en":"");
+    for(const auto& label:CtrPracticeAssets::labels)if(name==label.text) {
+        Tex3DS_SubTexture sub{u16(label.w),u16(label.h),float(label.x)/atlas.gpu.width,1-float(label.y)/atlas.gpu.height,
+            float(label.x+label.w)/atlas.gpu.width,1-float(label.y+label.h)/atlas.gpu.height};
+        // Trimmed captions share one top edge regardless of their ink height.
+        const float x=std::round(200-label.w*.5f);
+        CtrNative::DrawImage({&atlas.gpu,&sub},x+slide,DescriptionTop,C2D_Color32(255,255,255,alpha));
+        return;
+    }
+}
 void CtrPractice::DrawPrompt(int state,unsigned alpha,float slide) {
     const char* text=state==STATE_DIFFICULTY_SELECT?"difficulty-prompt-native":
-        state==STATE_CHARACTER_SELECT?"character-prompt-native":state==STATE_SHOT_SELECT?"weapon-prompt-native":nullptr;
+        state==STATE_CHARACTER_SELECT?"character-prompt-native":state==STATE_SHOT_SELECT?"weapon-prompt-native":
+        state==STATE_PRACTICE_TYPE?"practice-prompt-native":nullptr;
     if(text && alpha) {
         const auto localized=std::string(text)+(CtrSettings::English()?"-en":"");
         Label(localized.c_str(),160+slide,12,false,alpha,true);
@@ -47,7 +67,7 @@ void CtrPractice::DrawBottom(int selected,unsigned alpha,float slide) {
     const float center=(g_GameManager.character==0?200.f:120.f)+slide;
     const float top=114.f-(18.f+24.f*(Count()-1))*.5f;
     for(int i=0;i<Count();i++) {
-        char label[16];std::snprintf(label,sizeof(label),"STAGE %d",i+1);
+        char label[16];std::snprintf(label,sizeof(label),"STAGE %d",g_GameManager.difficulty==EXTRA?7:i+1);
         const bool enabled=Available(i),chosen=enabled && i==selected;
         Label(label,center,top+24*i,chosen,chosen?alpha:alpha*140/255,true,enabled);
     }

@@ -107,6 +107,10 @@ void CtrDecorations::SelectPortrait(int portrait) {
     if(portrait<0 || portrait>=4)return;
     current=portrait;
 }
+void CtrDecorations::PracticeBoss(bool midboss) {
+    mainBossSeen=!midboss;miniboss=midboss && (stage==2 || stage==4);
+    current=!midboss && stage>=6?2:0;
+}
 void CtrDecorations::PlayerSpellcard(int sprite) {bombFace=sprite-ANM_SPRITE_FACE_CHARA_START;}
 void CtrDecorations::EndPlayerSpellcard() {bombFace=-1;}
 void CtrDecorations::BossSpellcard(int sprite) {if(sprite>=0 && sprite<4)bossSpellFace=sprite;}

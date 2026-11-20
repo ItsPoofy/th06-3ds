@@ -1,4 +1,7 @@
 #include "EnemyEclInstr.hpp"
+#ifdef __3DS__
+#include "practice/Th06Run.hpp"
+#endif
 #include "BulletManager.hpp"
 #include "EclManager.hpp"
 #include "EffectManager.hpp"
@@ -221,7 +224,11 @@ i32 *GetVar(Enemy *enemy, EclVarId *eclVarId, EclValueType *valueType)
         return &enemy->life;
 
     case ECL_VAR_PLAYER_SHOT:
-        g_PlayerShot = g_GameManager.CharacterShotType();
+#ifdef __3DS__
+        g_PlayerShot=Practice::Th06Run::ShotRoute();
+#else
+        g_PlayerShot=g_GameManager.CharacterShotType();
+#endif
         if (valueType != NULL)
             *valueType = ECL_VALUE_TYPE_INT;
         return &g_PlayerShot;
@@ -530,9 +537,16 @@ void ExInsShootStarPattern(Enemy *enemy, EclRawInstr *instr)
 
 void ExInsPatchouliShottypeSetVars(Enemy *enemy, EclRawInstr *instr)
 {
-    enemy->currentContext.var1 = g_PatchouliShottypeVars[g_GameManager.character].shotVars[g_GameManager.shotType].var1;
-    enemy->currentContext.var2 = g_PatchouliShottypeVars[g_GameManager.character].shotVars[g_GameManager.shotType].var2;
-    enemy->currentContext.var3 = g_PatchouliShottypeVars[g_GameManager.character].shotVars[g_GameManager.shotType].var3;
+    const int shot=
+#ifdef __3DS__
+        Practice::Th06Run::ShotRoute();
+#else
+        g_GameManager.CharacterShotType();
+#endif
+    const auto& variables=g_PatchouliShottypeVars[shot/2].shotVars[shot%2];
+    enemy->currentContext.var1=variables.var1;
+    enemy->currentContext.var2=variables.var2;
+    enemy->currentContext.var3=variables.var3;
 }
 
 void ExInsStage56Func4(Enemy *enemy, EclRawInstr *instr)
@@ -1185,6 +1199,9 @@ void ExInsStageXFunc16(Enemy *enemy, EclRawInstr *instr)
     i32 remainingLife;
 
     remainingLife = enemy->life;
+#ifdef __3DS__
+    if(Practice::Th06Run::QedRage())remainingLife=0;
+#endif
     if (enemy->bossTimer >= MAX_BOSS_TIME)
     {
         remainingLife = 0;

@@ -6,6 +6,8 @@ bool Initialize();
 bool RefreshMaterial();
 void Shutdown();
 void ReleaseMenuAssets();
+// Frees the practice menus' text sheets when the main menu closes.
+void ReleaseMenuText();
 void BeginScene();
 void MarkScene();
 bool HasScene();

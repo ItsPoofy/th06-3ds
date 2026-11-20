@@ -1,4 +1,5 @@
 #pragma once
+#include <cstddef>
 
 #include "ItemManager.hpp"
 #include "SoundPlayer.hpp"
@@ -483,6 +484,7 @@ struct EclManager
     ZunResult RunEcl(Enemy *enemy);
     ZunResult CallEclSub(EnemyEclContext *enemyEcl, i16 subId) const;
 
+    std::size_t fileSize=0;
     const EclRawHeader *eclFile;
     const EclTimelineInstr *timelinePtrs[3];
     EclRawInstr **subTable;

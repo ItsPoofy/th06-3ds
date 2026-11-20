@@ -2,6 +2,10 @@
 #include <algorithm>
 namespace CtrMenuTiming {
 inline constexpr int Frames=18;
+inline float SlideProgress(int frame) {
+    const float t=std::clamp(float(frame)/Frames,0.f,1.f);
+    return 1-(1-t)*(1-t);
+}
 inline float Progress(int frame) {
     const float t=std::clamp(float(frame)/Frames,0.f,1.f);
     return t*t*(3-2*t);
