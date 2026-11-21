@@ -121,15 +121,18 @@ bool CtrAudio::Initialize() {
 }
 void CtrAudio::Shutdown() {
  if(!initialized)return;
- CtrSfx::BeginReload();
+ CtrRuntime::Log("Audio shutdown: stopping workers");
+ CtrSfx::StopWorker();
  streamActive=false;quit=true;LightEvent_Signal(&streamEvent);
  if(worker)SDL_WaitThread(worker,nullptr);worker=nullptr;
  {Guard guard;StopLocked();}
  for(int ch=0;ch<24;ch++)ndspChnWaveBufClear(ch);
  // Keep the static callback valid until NDSP's own thread has stopped.
+ CtrRuntime::Log("Audio shutdown: stopping DSP");
  ndspExit();ndspSetCallback(nullptr,nullptr);initialized=false;
  for(auto& s:slots)for(auto& data:s.data){if(data)linearFree(data);data=nullptr;}
  CtrSfx::Shutdown();
+ CtrRuntime::Log("Audio shutdown complete");
 }
 bool CtrAudio::LoadMusic(const char* path) {
  if(!initialized)return false;Guard guard;StopLocked();

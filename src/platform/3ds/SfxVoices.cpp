@@ -68,12 +68,16 @@ void CtrSfx::BeginReload() {
 }
 void CtrSfx::Shutdown() {
  // Either ndspExit joined the callback, or BeginReload acknowledged its stop.
- StopRequests();
- quit.store(true,std::memory_order_release);
- if(worker){LightEvent_Signal(&audioEvent);threadJoin(worker,U64_MAX);threadFree(worker);worker=nullptr;}
+ StopWorker();
  CtrSfxMixer::Clear();samples.clear();resetRequested=false;
  if(output)linearFree(output);output=nullptr;
  for(auto& slot:slots)slot={};
+}
+void CtrSfx::StopWorker() {
+ StopRequests();
+ resetRequested.store(false,std::memory_order_release);
+ quit.store(true,std::memory_order_release);
+ if(worker){LightEvent_Signal(&audioEvent);threadJoin(worker,U64_MAX);threadFree(worker);worker=nullptr;}
 }
 
 bool CtrSfx::Load(int id,const char* filename,float gain) {

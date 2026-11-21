@@ -151,7 +151,9 @@ restart:
 stop:
 #ifdef __3DS__
     // Finish GPU reads before chain teardown releases assets or uploads text.
+    CtrRuntime::Log("Shutdown: draining graphics");
     if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->PrepareForExit();
+    CtrRuntime::Log("Shutdown: releasing game");
 #endif
     g_Chain.Release();
     g_SoundPlayer.Release();
@@ -184,5 +186,8 @@ stop:
 
     SDL_ShowCursor(SDL_ENABLE);
     g_GameErrorContext.Flush();
+#ifdef __3DS__
+    CtrRuntime::Log("Shutdown complete");
+#endif
     return 0;
 }
