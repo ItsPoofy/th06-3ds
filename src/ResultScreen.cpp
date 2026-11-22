@@ -104,7 +104,7 @@ f32 ContentOpacity(const ResultScreen *resultScreen)
     return opacity;
 }
 
-constexpr f32 SlideDistance = CtrMenuCanvas::Width;
+constexpr f32 SlideDistance = 640;
 f32 SpellShare(const ResultScreen *resultScreen)
 {
     const bool spellCards = resultScreen->resultScreenState == RESULT_SCREEN_STATE_SPELLCARDS;
@@ -128,13 +128,7 @@ u32 Faded(u32 color, f32 opacity)
     return (u32((color >> 24) * opacity) << 24) | (color & 0xffffff);
 }
 
-// The title drops in from above the screen as it opens, over the same 30
-// frames and distance as the Music Room title.
 constexpr i32 TitleFrames = 30;
-f32 TitleY()
-{
-    return -48.0f + 60.0f * std::min(1.0f, f32(enterFrame) / TitleFrames);
-}
 
 void ShowSpellCards(ResultScreen *resultScreen)
 {
@@ -298,16 +292,12 @@ void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 charac
     ZunVec3 position;
     g_AsciiManager.scale = ZunVec2(TableHeaderScale, TableHeaderScale);
     g_AsciiManager.color = Faded(0xffb0b0c8, view.opacity);
-    // The headers stay in place for every table. NAME is centred over the
-    // 8-character name field, SCORE over the last 8 places of the score field.
-    constexpr f32 glyphAdvance = 14.0f * TableScale, headerAdvance = 14.0f * TableHeaderScale;
     const f32 slide = view.slide;
-    const f32 scoreRight = ScoreX + 9 * glyphAdvance;
-    position = ZunVec3(NameX + slide + (8 * glyphAdvance - 4 * headerAdvance) / 2, TableTop - 26.0f, 0.0f);
+    position = ZunVec3(NameX + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "NAME");
-    position = ZunVec3(scoreRight + slide - (8 * glyphAdvance + 5 * headerAdvance) / 2, TableTop - 26.0f, 0.0f);
+    position = ZunVec3(ScoreX + 76.0f + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "SCORE");
-    position = ZunVec3(StageX + slide, TableTop - 26.0f, 0.0f);
+    position = ZunVec3(StageX - 8.0f + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "ST");
 
     g_AsciiManager.scale = ZunVec2(TableScale, TableScale);
@@ -2115,8 +2105,7 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
     const bool nameEntry = resultScreen->resultScreenState == RESULT_SCREEN_STATE_WRITING_HIGHSCORE_NAME;
     const bool spellCards = resultScreen->resultScreenState == RESULT_SCREEN_STATE_SPELLCARDS;
     const bool records = board || nameEntry || spellCards;
-    const i32 spriteCount = records ? 0 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
-    if(records)CtrRecordsPanel::ShowTitle(TitleY());
+    const i32 spriteCount = records ? 1 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
     CtrPresentation::SetContentOpacity(ContentOpacity(resultScreen));
     const f32 share = SpellShare(resultScreen);
     if (switchFrame >= 0 && ++switchFrame >= CtrMenuTiming::Frames)

@@ -22,10 +22,6 @@ void ZunViewport::Set() const
                                   VIEWPORT_OFF_Y,
                               this->width * WIDTH_RESOLUTION_SCALE, this->height * HEIGHT_RESOLUTION_SCALE);
     g_GfxBackend->SetDepthRange(this->minZ, this->maxZ);
-#ifdef __3DS__
-    if(changed && g_AnmManager && g_AnmManager->projectionMode==PROJECTION_MODE_ORTHOGRAPHIC)
-        g_AnmManager->SetTransformMatrix(MATRIX_PROJECTION,inverseViewportMatrix());
-#endif
 }
 
 void ZunViewport::Get()

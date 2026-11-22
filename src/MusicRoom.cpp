@@ -30,9 +30,9 @@ namespace {
 constexpr int VisibleRows=11;
 constexpr float ListScale=1.4f;
 constexpr float ListTop=118,ListSpacing=30;
-constexpr float ListTitleX=98;
-constexpr float ListBoxLeft=40,ListBoxRight=CtrMenuCanvas::Width-40,ListBoxMargin=8,ListRowHeight=21;
-constexpr float DescriptionScale=1.2f;
+constexpr float ListTitleX=CtrMenuCanvas::ContentInset+98;
+constexpr float ListBoxLeft=CtrMenuCanvas::ContentInset+40,ListBoxRight=CtrMenuCanvas::Width-ListBoxLeft,ListBoxMargin=8,ListRowHeight=21;
+constexpr float DescriptionScale=ListScale;
 constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
 constexpr float DescriptionRowWidth=(640-2*DescriptionLeft)/DescriptionScale;
 constexpr int DescriptionRowsPerPage=8;
@@ -275,12 +275,15 @@ ChainCallbackResult MusicRoom::OnDraw(MusicRoom *musicRoom)
 #ifdef __3DS__
     // The English title is stored at half width to fit its 256 px sprite.
     const float titleScaleX = musicRoom->mainVm->scaleX;
+    const float titleX=musicRoom->mainVm->pos.x;
+    musicRoom->mainVm->pos.x+=CtrMenuCanvas::ContentInset;
     if (CtrSettings::English())
     {
         musicRoom->mainVm->scaleX *= 2;
     }
     g_AnmManager->DrawNoRotation(musicRoom->mainVm);
     musicRoom->mainVm->scaleX = titleScaleX;
+    musicRoom->mainVm->pos.x=titleX;
 #else
     g_AnmManager->DrawNoRotation(musicRoom->mainVm);
 #endif
@@ -559,13 +562,14 @@ void MusicRoom::DisplayDescription() {
     for(int row=0;row<32;row++)if(track.description[row][0])lines=row+1;
 #ifdef __3DS__
     const auto& first=this->descriptionSprites[0];
-    const int fontHeight=first.fontWidth<=0?15:first.fontWidth;
+    const int fontHeight=this->titleSprites[0].fontWidth<=0?15:this->titleSprites[0].fontWidth;
     CtrMusicDescription::Row rows[MaxDescriptionRows];
     const int rowCount=CtrMusicDescription::Layout(track.description,lines,fontHeight,first.sprite->widthPx,
         DescriptionRowWidth,rows,MaxDescriptionRows);
     this->descriptionPages=std::max(1,(rowCount+DescriptionRowsPerPage-1)/DescriptionRowsPerPage);
     for(int i=0;i<ARRAY_SIZE_SIGNED(this->descriptionSprites);i++) {
         auto& sprite=this->descriptionSprites[i];
+        sprite.fontWidth=sprite.fontHeight=fontHeight;
         const int row=this->descriptionPage*DescriptionRowsPerPage+i/2;
         sprite.flags.flag1=row<rowCount && i%2<rows[row].partCount;
         if(!sprite.flags.flag1)continue;

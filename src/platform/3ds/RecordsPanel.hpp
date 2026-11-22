@@ -15,19 +15,17 @@ inline constexpr float RowCenter(int row) {return SectionTop(row)+(Caption+Secti
 inline constexpr float Divider=Margin+3*Section+4;
 inline constexpr float ButtonCenter=(Divider+480-Margin)/2;
 
-// Layout of the score table in the 800x480 upper canvas, shown at half size.
-inline constexpr float TableTop=168,TableSpacing=28,TableScale=1.5f,TableHeaderScale=CaptionScale;
-inline constexpr float RankX=36,NameX=80,ScoreX=416,StageX=724;
+// Layout of the score table in the 640x480 scene, shown at half size.
+inline constexpr float TableTop=152,TableSpacing=30,TableScale=1.25f,TableHeaderScale=.9f;
+inline constexpr float RankX=36,NameX=80,ScoreX=210,StageX=390;
 
-// slide is in upper-canvas pixels. LowerSlide maps it to the 640 px lower
-// canvas. Both views draw throughout a board/list transition.
+// Both screens use 640x480 logical coordinates during the transition.
 struct View {
     float slide=0,opacity=1;
-    float LowerSlide() const {return slide*640/CtrMenuCanvas::Width;}
+    float LowerSlide() const {return slide;}
 };
 void Show(bool controls,View view={});
 void ShowSpellCards(View view={});
-void ShowTitle(float y);
 void Clear();
 void Release();
 void Draw(C3D_RenderTarget* top,C3D_RenderTarget* bottom);

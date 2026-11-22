@@ -26,39 +26,12 @@ bool isUTF8Encoded(const char* string);
 namespace {
 const int CardCount=std::size(g_GameManager.catk);
 
-// List rows in the 800x480 upper canvas, shown at half size.
-// Each row shows "No.01  " and the card name, then the captured and attempted
-// counts at its right end, all in the same font.
-constexpr float ListTop=148,ListSpacing=27,ListScale=1.5f,RowHeight=24;
-constexpr float BoxLeft=24,BoxRight=CtrMenuCanvas::Width-24,BoxMargin=10;
-constexpr float CountsRight=BoxRight-16,CountsWidth=140;
-constexpr float NameX=40,NameWidth=CountsRight-CountsWidth-12-NameX;
-// Text is drawn at 15 px. Longer names are drawn smaller to fit the 256 px
-// text row on one line, then scaled back to the row height and squeezed
-// sideways where they would run past their space.
 constexpr int FontSize=15;
 constexpr float TextRowWidth=240;
-
-// unk_28a0 holds 16 text rows. The list keeps its names in the first 13, by
-// card number. The next holds the count glyphs, and the next the details
-// panel's name.
-constexpr int RowSlots=13,DigitSlot=13,DetailSlot=14;
+constexpr int RowSlots=5,DetailSlot=14;
 int prepared[RowSlots];
-// Bottom of the "N" of "No." in each row, in texture rows below the row's
-// top, and the same for a row drawn at FontSize. Rows drawn smaller are moved
-// to put their "N" on that baseline.
-float baselines[RowSlots];
-float referenceBaseline=-1;
 int preparedDetail=-1;
 int offset=0;
-
-// The counts are built from single glyphs, "0" to "9" and "/", rendered once.
-// Each glyph's ink spans [start, start + width) in the text texture.
-constexpr char Digits[]="0 1 2 3 4 5 6 7 8 9 /";
-constexpr int DigitCount=11;
-struct Glyph {float start=0,width=0;};
-Glyph digits[DigitCount];
-bool digitsReady=false;
 
 const char* Name(int index) {
     const auto& card=g_GameManager.catk[index];
@@ -69,52 +42,18 @@ unsigned Color(int index) {
     return card.numAttempts==0?0x80c0c0ffu:card.numSuccess==0?0xffc0a0a0u:0xfff0f0ffu;
 }
 
-// The number goes in front of the translated name. Translation matches whole
-// names, so the name is translated first.
-std::string RowText(int index) {
-    const char* name=Name(index);
-    char* converted=isUTF8Encoded(name)?nullptr:sjis2utf8(name);
-    std::string translated=CtrContent::Translate(converted?converted:name);
-    std::free(converted);
-    char number[16];
-    std::snprintf(number,sizeof(number),"No.%.2d  ",index+1);
-    return number+translated;
-}
-
 int FitSize(const char* text) {
     int size=FontSize;
     while(size>8 && TextHelper::Measure(text,size)>TextRowWidth)size--;
     return size;
 }
 
-// Bottom of the first glyph's light pixels, in texture rows below the text
-// row's top. The black shadow is left out. Returns -1 when there is no ink.
-float FirstGlyphBottom(const AnmVm& vm) {
-    const auto& texture=g_AnmManager->textures[vm.sprite->sourceFileIndex];
-    if(!texture.textureData)return -1;
-    const int row=vm.sprite->startPixelInclusive.y;
-    const int bottom=std::min<int>(row+int(vm.ctrTextHeight),texture.height);
-    int last=-1;bool started=false;
-    for(unsigned x=unsigned(vm.ctrTextStart);x<texture.width;x++) {
-        bool ink=false;
-        for(int y=row;y<bottom;y++) {
-            const u8* pixel=&texture.textureData[(y*texture.width+x)*4];
-            if(pixel[3]>128 && pixel[0]>128) {ink=true;last=std::max(last,y);}
-        }
-        if(ink)started=true;else if(started)break;
-    }
-    return last<0?-1:float(last+1-row);
-}
-
 void Prepare(ResultScreen& screen,int index) {
     const int slot=index%RowSlots;
     if(prepared[slot]==index)return;
     auto& vm=screen.unk_28a0[slot];
-    const std::string row=RowText(index);
-    vm.fontWidth=vm.fontHeight=FitSize(row.c_str());
-    TextHelper::Wrapped(&vm,row.c_str(),COLOR_RGB(COLOR_WHITE),COLOR_RGB(COLOR_BLACK),256,true);
-    baselines[slot]=FirstGlyphBottom(vm);
-    if(vm.fontHeight==FontSize && baselines[slot]>=0)referenceBaseline=baselines[slot];
+    vm.fontWidth=vm.fontHeight=FontSize;
+    TextHelper::Wrapped(&vm,Name(index),COLOR_RGB(COLOR_WHITE),COLOR_RGB(COLOR_BLACK),286);
     prepared[slot]=index;
 }
 
@@ -140,49 +79,6 @@ float TextWidthScale(const AnmVm& vm,float scale,float maxWidth) {
 }
 void DrawText(const AnmVm& vm,float x,float y,float scale,float maxWidth,unsigned color) {
     DrawPart(vm,vm.ctrTextStart,vm.ctrTextWidth,x,y,TextWidthScale(vm,scale,maxWidth),TextHeightScale(vm,scale),color);
-}
-
-// Renders the count glyphs and finds each one's ink columns. The glyphs are
-// rendered with spaces between them, so each is a separate run of ink.
-void PrepareDigits(ResultScreen& screen) {
-    if(digitsReady)return;
-    auto& vm=screen.unk_28a0[DigitSlot];
-    vm.fontWidth=vm.fontHeight=FontSize;
-    TextHelper::Wrapped(&vm,Digits,COLOR_RGB(COLOR_WHITE),COLOR_RGB(COLOR_BLACK),256,true);
-    const auto& texture=g_AnmManager->textures[vm.sprite->sourceFileIndex];
-    if(!texture.textureData)return;
-    const int row=vm.sprite->startPixelInclusive.y;
-    const int bottom=std::min<int>(row+int(vm.ctrTextHeight),texture.height);
-    int count=0;bool inside=false;
-    for(unsigned x=0;x<texture.width && count<=DigitCount;x++) {
-        bool ink=false;
-        for(int y=row;y<bottom && !ink;y++)ink=texture.textureData[(y*texture.width+x)*4+3]!=0;
-        if(ink && !inside) {if(count<DigitCount)digits[count].start=x;inside=true;}
-        if(!ink && inside) {if(count<DigitCount)digits[count].width=x-digits[count].start;count++;inside=false;}
-    }
-    digitsReady=count==DigitCount;
-}
-
-// Draws "captured/attempted" with its right end at right.
-void DrawCounts(ResultScreen& screen,int index,float right,float y,unsigned color) {
-    if(!digitsReady)return;
-    const auto& card=g_GameManager.catk[index];
-    char text[16];
-    std::snprintf(text,sizeof(text),"%d/%d",card.numSuccess,card.numAttempts);
-    // Glyphs sit one tenth of the "0" width apart, about Biolinum's side bearings.
-    const float gap=digits[0].width*.1f;
-    float width=0;
-    for(const char* c=text;*c;c++) {
-        const auto& glyph=digits[*c=='/'?10:*c-'0'];
-        width+=(glyph.width+gap)*ListScale;
-    }
-    float x=right-width;
-    const auto& vm=screen.unk_28a0[DigitSlot];
-    for(const char* c=text;*c;c++) {
-        const auto& glyph=digits[*c=='/'?10:*c-'0'];
-        DrawPart(vm,glyph.start,glyph.width,x,y,ListScale,ListScale,color);
-        x+=(glyph.width+gap)*ListScale;
-    }
 }
 
 void Ascii(const char* text,float x,float y,float scale,unsigned color) {
@@ -213,7 +109,7 @@ constexpr float StatsTop=240,StatsSpacing=36,StatsScale=1.25f;
 }
 
 void CtrRecords::OpenList(ResultScreen& screen) {
-    std::fill(std::begin(prepared),std::end(prepared),-1);preparedDetail=-1;digitsReady=false;referenceBaseline=-1;
+    std::fill(std::begin(prepared),std::end(prepared),-1);preparedDetail=-1;
     screen.cursor=std::clamp(int(screen.cursor),0,CardCount-1);
     offset=std::clamp(offset,std::max(0,int(screen.cursor)-VisibleRows+1),std::min(int(screen.cursor),CardCount-VisibleRows));
 }
@@ -229,26 +125,25 @@ bool CtrRecords::Input(ResultScreen& screen) {
 static unsigned Faded(unsigned color,float opacity) {return (unsigned((color>>24)*opacity)<<24)|(color&0xffffff);}
 
 void CtrRecords::DrawList(ResultScreen& screen,CtrRecordsPanel::View view) {
-    const int end=std::min(CardCount,offset+VisibleRows);
-    const float slide=view.slide;
-    CtrPresentation::ShowListBox(BoxLeft+slide,ListTop-BoxMargin,BoxRight+slide,ListTop+(VisibleRows-1)*ListSpacing+RowHeight+BoxMargin,
-                                 offset>0,end<CardCount,view.opacity);
+    constexpr float scale=1.2f;
     const auto savedScale=g_AsciiManager.scale;const auto savedColor=g_AsciiManager.color;
-    PrepareDigits(screen);
-    for(int index=offset;index<end;index++) {
+    auto heading=screen.unk_40[13];
+    heading.pos=ZunVec3(48+view.slide,64,0);
+    heading.color=Faded(heading.color|0xff000000u,view.opacity);
+    g_AnmManager->DrawNoRotation(&heading);
+    g_AsciiManager.scale=ZunVec2(scale,scale);
+    const int first=screen.cursor/VisibleRows*VisibleRows;
+    for(int row=0;row<VisibleRows && first+row<CardCount;row++) {
+        const int index=first+row;
         Prepare(screen,index);
-        // The selected card is shown at full strength, the others dimmed.
-        unsigned color=Color(index);
-        color=index==screen.cursor?color|0xff000000u:(color&0xffffff)|((color>>24)*9/16<<24);
-        color=Faded(color,view.opacity);
-        const float y=ListTop+(index-offset)*ListSpacing;
-        const int slot=index%RowSlots;
-        const auto& vm=screen.unk_28a0[slot];
-        // Put a smaller row's baseline where a full-size row's is.
-        const float shift=referenceBaseline>=0 && baselines[slot]>=0?
-            referenceBaseline*ListScale-baselines[slot]*TextHeightScale(vm,ListScale):0;
-        DrawText(vm,NameX+slide,y+shift,ListScale,NameWidth,color);
-        DrawCounts(screen,index,CountsRight+slide,y,color);
+        const auto color=Faded(Color(index),view.opacity);
+        ZunVec3 position(12+view.slide,144+60*row,0);
+        g_AsciiManager.color=color;
+        g_AsciiManager.AddFormatText(&position,"No.%.2d",index+1);
+        const auto& vm=screen.unk_28a0[index%RowSlots];
+        DrawPart(vm,vm.ctrTextStart,vm.ctrTextWidth,position.x+90,position.y,scale,scale,color);
+        position.x+=464;
+        g_AsciiManager.AddFormatText(&position,"%3d/%3d",g_GameManager.catk[index].numSuccess,g_GameManager.catk[index].numAttempts);
     }
     g_AsciiManager.scale=savedScale;g_AsciiManager.color=savedColor;
 }

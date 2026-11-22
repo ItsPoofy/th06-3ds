@@ -16,8 +16,6 @@ bool atlasEnglish=false;
 struct Shown {bool on=false;CtrRecordsPanel::View view;};
 Shown boardShown,spellShown;
 bool controlsShown=false;
-bool titleShown=false;
-float titleTop=0;
 CtrRecordsPanel::Board board;
 
 // Labels are drawn at half size: the atlas holds them at layer resolution.
@@ -65,18 +63,18 @@ void DifficultyEdges(float* left,float* width) {
 CtrRecordsPanel::Board& CtrRecordsPanel::Current() {return board;}
 void CtrRecordsPanel::Show(bool controls,View view) {
     boardShown={true,view};controlsShown=controls;
-    CtrPresentation::ShowListBox(24+view.slide,TableTop-34,CtrMenuCanvas::Width-24+view.slide,TableTop+10*TableSpacing+6,false,false,view.opacity);
+    CtrPresentation::ShowListBox(24+view.slide,TableTop-34,424+view.slide,TableTop+10*TableSpacing+6,false,false,view.opacity);
 }
 void CtrRecordsPanel::ShowSpellCards(View view) {spellShown={true,view};}
-void CtrRecordsPanel::ShowTitle(float y) {titleShown=true;titleTop=y*LabelScale;}
-void CtrRecordsPanel::Clear() {boardShown.on=spellShown.on=titleShown=false;}
+void CtrRecordsPanel::Clear() {boardShown.on=spellShown.on=false;}
 void CtrRecordsPanel::Release() {
     if(atlas.ready && g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
     atlas.Clear();
 }
 
 namespace {
-constexpr float HeaderX=CtrRecordsPanel::RankX/2,HeaderY=51;
+constexpr float HeaderX=40+CtrRecordsPanel::RankX/2,HeaderY=40;
+constexpr float HeaderScale=LabelScale/1.25f;
 unsigned Rule(float opacity) {return C2D_Color32(120,60,60,unsigned(255*opacity));}
 void Move(const CtrRecordsPanel::View& view,bool lower) {
     C2D_ViewReset();C2D_ViewTranslate((lower?view.LowerSlide():view.slide)*LabelScale,0);
@@ -85,10 +83,6 @@ void Move(const CtrRecordsPanel::View& view,bool lower) {
 void DrawSpellCards(C3D_RenderTarget* top,C3D_RenderTarget* bottom,CtrRecordsPanel::View view) {
     using namespace CtrRecordsPanel;
     const float opacity=view.opacity;
-    C2D_SceneBegin(top);
-    Move(view,false);
-    // The atlas holds this label at the lower screen's size. Draw it at row size.
-    Label("spellcards",HeaderX,HeaderY,unsigned(255*opacity),LabelScale*1.25f/1.5f);
     C2D_SceneBegin(bottom);
     Move(view,true);
     // The caption "SPELL CARD No.00" is 16 characters.
@@ -103,11 +97,11 @@ void DrawBoard(C3D_RenderTarget* top,C3D_RenderTarget* bottom,CtrRecordsPanel::V
     const unsigned alpha=unsigned(255*opacity);
     char name[24];
     std::snprintf(name,sizeof(name),"small-difficulty%d",board.difficulty);
-    Label(name,HeaderX,HeaderY,alpha);
-    const float difficultyWidth=LayerWidth(name);
+    Label(name,HeaderX,HeaderY,alpha,HeaderScale);
+    const float difficultyWidth=LayerWidth(name)/1.25f;
     std::snprintf(name,sizeof(name),"header%d",board.character*2+board.shot);
-    Label(name,HeaderX+(difficultyWidth+20)*LabelScale,HeaderY,alpha);
-    Line(RankX/2,(TableTop-6)/2,(CtrMenuCanvas::Width-36)/2.f,C2D_Color32(255,192,192,unsigned(110*opacity)));
+    Label(name,HeaderX+(difficultyWidth+20)*LabelScale,HeaderY,alpha,HeaderScale);
+    Line(40+RankX/2,(TableTop-6)/2,40+412/2.f,C2D_Color32(255,192,192,unsigned(110*opacity)));
     if(!controlsShown)return;
 
     C2D_SceneBegin(bottom);
@@ -140,12 +134,7 @@ void DrawBoard(C3D_RenderTarget* top,C3D_RenderTarget* bottom,CtrRecordsPanel::V
 }
 
 void CtrRecordsPanel::Draw(C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
-    if((!boardShown.on && !spellShown.on && !titleShown) || !Ready())return;
-    if(titleShown) {
-        C2D_ViewReset();C2D_SceneBegin(top);
-        Label("records-title",24,titleTop);
-        Label("records-subtitle",24,titleTop+30);
-    }
+    if((!boardShown.on && !spellShown.on) || !Ready())return;
     if(boardShown.on)DrawBoard(top,bottom,boardShown.view);
     if(spellShown.on)DrawSpellCards(top,bottom,spellShown.view);
     C2D_ViewReset();

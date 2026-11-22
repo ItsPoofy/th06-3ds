@@ -1,6 +1,7 @@
 #include "RecordsPanel.hpp"
 #include "MenuCanvas.hpp"
 #include "CtrRenderer.hpp"
+#include "AnmManager.hpp"
 #include "Runtime.hpp"
 #include "Presentation.hpp"
 #include "DisplaySettings.hpp"
@@ -154,6 +155,8 @@ void CtrRenderer::SetViewport(i32 x,i32 y,i32 w,i32 h) {
     if(drawingMenuLayer) {x/=2;y/=2;w/=2;h/=2;}
     else if(CtrMenuCanvas::FullWidth() && x==0 && w==640 && h==480)w=CtrMenuCanvas::Width;
     viewport[0]=x; viewport[1]=y; viewport[2]=w; viewport[3]=h;
+    if(g_AnmManager && g_AnmManager->projectionMode==PROJECTION_MODE_ORTHOGRAPHIC)
+        g_AnmManager->SetTransformMatrix(MATRIX_PROJECTION,inverseViewportMatrix());
 }
 void CtrRenderer::SetClearColor(f32 r,f32 g,f32 b,f32 a) {
     // RGBA8 framebuffer memory is A,B,G,R, matching tiled texture memory.
@@ -505,7 +508,8 @@ void CtrRenderer::BeginMenuLayer(bool clear) {
 }
 void CtrRenderer::EndMenuLayer() {
     if(!frameOpen)return;
-    drawingMenuLayer=false;std::copy(savedViewport,savedViewport+4,viewport);
+    drawingMenuLayer=false;
+    SetViewport(savedViewport[0],savedViewport[1],savedViewport[2],savedViewport[3]);
     C3D_FrameDrawOn(sceneTarget);ApplyState();
 }
 void CtrRenderer::ShowLoadingScreen() {

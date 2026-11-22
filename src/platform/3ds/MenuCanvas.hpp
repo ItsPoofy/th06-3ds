@@ -3,10 +3,10 @@
 
 namespace CtrMenuCanvas {
 inline constexpr int Width=800;
+// Preserve the original 40 screen pixels around the 640 px scene's content.
+inline constexpr int ContentInset=80;
 inline bool FullWidth() {
-    const int scene=g_Supervisor.wantedState;
-    return scene==SUPERVISOR_STATE_MUSICROOM || scene==SUPERVISOR_STATE_RESULTSCREEN ||
-        scene==SUPERVISOR_STATE_RESULTSCREEN_FROMGAME;
+    return g_Supervisor.wantedState==SUPERVISOR_STATE_MUSICROOM;
 }
 inline float ScreenLeft(){return FullWidth()?0.f:40.f;}
 }
