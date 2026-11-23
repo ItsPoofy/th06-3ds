@@ -60,6 +60,7 @@ struct GameManager
     static void SetupCameraStageBackground(f32);
 
     i32 HasReachedMaxClears(i32 character, i32 shottype) const;
+    bool CanRecordProgress() const {return !isInPracticeMode && !isInReplay && !demoMode;}
     void IncreaseSubrank(i32 amount);
     void DecreaseSubrank(i32 amount);
     i32 IsInBounds(f32 x, f32 y, f32 width, f32 height) const;

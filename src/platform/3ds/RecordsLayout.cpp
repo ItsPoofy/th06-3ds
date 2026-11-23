@@ -1,4 +1,6 @@
 #include "RecordsLayout.hpp"
+#include "practice/Th06.hpp"
+#include "Settings.hpp"
 #include "RecordsPanel.hpp"
 #include "Presentation.hpp"
 #include "CtrRenderer.hpp"
@@ -35,11 +37,12 @@ int offset=0;
 
 const char* Name(int index) {
     const auto& card=g_GameManager.catk[index];
-    return card.numAttempts?card.name:TH_UNKNOWN_SPELLCARD;
+    if(card.numAttempts)return card.name;
+    return Practice::Th06::SpellKnown(index)?Practice::Th06::SpellName(index,!CtrSettings::English()):TH_UNKNOWN_SPELLCARD;
 }
 unsigned Color(int index) {
     const auto& card=g_GameManager.catk[index];
-    return card.numAttempts==0?0x80c0c0ffu:card.numSuccess==0?0xffc0a0a0u:0xfff0f0ffu;
+    return !Practice::Th06::SpellKnown(index)?0x80c0c0ffu:card.numSuccess==0?0xffc0a0a0u:0xfff0f0ffu;
 }
 
 int FitSize(const char* text) {

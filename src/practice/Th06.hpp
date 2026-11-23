@@ -8,6 +8,8 @@ const std::vector<Entry>& Entries();
 const Stage& GetStage(int stage);
 const Entry* Selected();
 bool Encountered(const Entry& entry);
+bool SpellKnown(int spell);
+const char* SpellName(int spell,bool japanese);
 bool StageAvailable(int stage);
 void Normalize();
 int PortionFrame(int stage,int portion);

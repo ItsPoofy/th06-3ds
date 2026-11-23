@@ -38,6 +38,7 @@ struct Session {
     Mode previous=Mode::None;
     bool Custom() const {return mode==Mode::Custom;}
     bool SavesPoints() const {return mode!=Mode::Custom;}
+    bool SavesHistory() const {return mode!=Mode::Custom;}
 };
 Session& Current();
 void Reset();

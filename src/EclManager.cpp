@@ -2,6 +2,7 @@
 #include "platform/3ds/Runtime.hpp"
 #endif
 #include "EclManager.hpp"
+#include "practice/Session.hpp"
 #include "AnmManager.hpp"
 #include "EffectManager.hpp"
 #include "Enemy.hpp"
@@ -19,6 +20,7 @@
 #ifdef __3DS__
 #include "platform/3ds/BossCounters.hpp"
 #include "practice/Th06Run.hpp"
+#include "practice/Th06Progress.hpp"
 #include "platform/3ds/BossPresentation.hpp"
 #endif
 
@@ -792,8 +794,17 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
                 enemy->bulletRankAmount2Low = 0;
                 enemy->bulletRankAmount2High = 0;
                 local_70 = &g_GameManager.catk[g_EnemyManager.spellcardInfo.idx];
+#ifdef __3DS__
+                if(Practice::Current().Custom() && Practice::Current().running && !setup && !g_GameManager.isInReplay &&
+                   !Practice::Th06Progress::RevealSpell(g_EnemyManager.spellcardInfo.idx))
+                    CtrRuntime::Log("Unable to save custom practice spell discovery");
+#endif
                 csum = 0;
-                if (!g_GameManager.isInReplay)
+                if (!g_GameManager.isInReplay
+#ifdef __3DS__
+                    && Practice::Current().SavesHistory()
+#endif
+                )
                 {
                     strcpy(local_70->name, instruction->args.spellcardStart.spellcardName);
                     local_74 = strlen(local_70->name);
@@ -835,7 +846,11 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
                                 g_EnemyManager.spellcardInfo.captureScore * g_Gui.SpellcardSecondsRemaining() / 10;
                             g_Gui.ShowSpellcardBonus(scoreIncrease);
                             g_GameManager.score += scoreIncrease;
-                            if (!g_GameManager.isInReplay)
+                            if (!g_GameManager.isInReplay
+#ifdef __3DS__
+                                && Practice::Current().SavesHistory()
+#endif
+                            )
                             {
                                 local_80->numSuccess++;
                                 for (local_84 = 4; 0 < local_84; local_84 = local_84 + -1)

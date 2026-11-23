@@ -2,6 +2,8 @@
 #ifdef __3DS__
 #include "practice/Session.hpp"
 #include "practice/Th06Run.hpp"
+#include "practice/Th06Progress.hpp"
+#include "platform/3ds/Runtime.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/PauseMenu.hpp"
 #include "platform/3ds/StageScores.hpp"
@@ -363,11 +365,7 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
     mgr->grazeInStage = 0;
     mgr->isInGameMenu = 0;
     mgr->currentStage = mgr->currentStage + 1;
-    if (g_GameManager.isInReplay == 0
-#ifdef __3DS__
-        && Practice::Current().SavesPoints()
-#endif
-    )
+    if (mgr->CanRecordProgress())
     {
         clrdIdx = g_GameManager.CharacterShotType();
         if (mgr->numRetries == 0 &&
@@ -483,6 +481,9 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
     if(!Practice::Th06Run::Begin()) {
         g_GameErrorContext.Log("The selected practice section could not be initialized\n");
         g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+    } else if(!mgr->isInReplay && !mgr->demoMode && !Practice::Current().Custom() &&
+              !Practice::Th06Progress::VisitStage(mgr->difficulty,mgr->currentStage)) {
+        CtrRuntime::Log("Unable to save practice stage visit");
     }
 #endif
     return ZUN_SUCCESS;

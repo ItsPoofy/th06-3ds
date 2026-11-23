@@ -1,4 +1,5 @@
 #include "Th06.hpp"
+#include "Th06Progress.hpp"
 #include "GameManager.hpp"
 #include "Th06Catalog.hpp"
 #include "Th06CatalogJa.hpp"
@@ -23,12 +24,29 @@ const Practice::Entry* Practice::Th06::Selected() {
     return nullptr;
 }
 bool Practice::Th06::Encountered(const Entry& entry) {
-    return entry.spell<0 || g_GameManager.catk[entry.spell].numAttempts>0;
+    return entry.spell<0 || SpellKnown(entry.spell);
+}
+bool Practice::Th06::SpellKnown(int spell) {
+    return spell>=0 && spell<CATK_NUM_CAPTURES &&
+        (g_GameManager.catk[spell].numAttempts>0 || Th06Progress::SpellKnown(spell));
+}
+const char* Practice::Th06::SpellName(int spell,bool japanese) {
+    for(const auto& entry:Entries())if(entry.spell==spell)return EntryName(entry,japanese);
+    return "????????";
 }
 bool Practice::Th06::StageAvailable(int stage) {
     const auto& session=Current();
-    if(session.Custom())for(const auto& entry:Entries())
-        if(entry.stage==stage && entry.spell>=0 && Encountered(entry))return true;
+    if(session.Custom()) {
+        const int difficulty=session.difficulty;
+        if(difficulty<0 || difficulty>EXTRA || stage<1 || stage>(difficulty==EASY?5:7) ||
+           (difficulty==EXTRA)!=(stage==7))return false;
+        if(Th06Progress::StageVisited(difficulty,stage))return true;
+        const auto& clears=g_GameManager.clrd[session.shot];
+        const int reached=std::max(clears.difficultyClearedWithRetries[difficulty],clears.difficultyClearedWithoutRetries[difficulty]);
+        if(difficulty==EXTRA)return reached>=6;
+        if(reached>1 && stage<=std::min(reached+1,difficulty==EASY?5:6))return true;
+        return stage<=6 && g_GameManager.pscr[session.shot][stage-1][difficulty].score>0;
+    }
     if(stage==7)return g_GameManager.HasReachedMaxClears(g_GameManager.character,g_GameManager.shotType);
     const int count=std::clamp(int(g_GameManager.clrd[session.shot].difficultyClearedWithoutRetries[session.difficulty]),1,session.difficulty==EASY?5:6);
     return stage>=1 && stage<=count;
@@ -54,7 +72,6 @@ int Practice::Th06::PortionFrame(int stage,int portion) {
     };
     return frames[stage-1][portion-1];
 }
-
 Practice::Setting Practice::Th06::StartSetting(int index,const Options& options) {
     static constexpr Setting settings[]={
         {"Lives",0,8,1},{"Bombs",0,8,1},{"Power",0,128,1},{"Score",0,999999990LL,10},

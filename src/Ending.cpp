@@ -534,7 +534,7 @@ ZunResult Ending::AddedCallback(Ending *ending)
 
     unused = g_GameManager.character * 2 + g_GameManager.shotType;
 
-    g_GameManager.isGameCompleted = true;
+    g_GameManager.isGameCompleted = g_GameManager.CanRecordProgress();
     g_Supervisor.isInEnding = true;
     g_Supervisor.LoadPbg3(ED_PBG3_INDEX, TH_ED_DAT_FILE);
     g_AnmManager->LoadAnm(ANM_FILE_STAFF01, "data/staff01.anm", ANM_OFFSET_STAFF01);
@@ -547,23 +547,22 @@ ZunResult Ending::AddedCallback(Ending *ending)
 
     shotTypeAndCharacter = g_GameManager.character * 2 + g_GameManager.shotType;
     ending->hasSeenEnding = false;
-    if (g_GameManager.numRetries == 0)
+    if (g_GameManager.CanRecordProgress())
     {
-        if (g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithRetries[g_GameManager.difficulty] == 99)
+        if (g_GameManager.numRetries == 0)
+        {
+            if (g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithRetries[g_GameManager.difficulty] == 99)
+            {
+                ending->hasSeenEnding = true;
+            }
+            g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithRetries[g_GameManager.difficulty] = 99;
+        }
+        else if (g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithoutRetries[g_GameManager.difficulty] == 99)
         {
             ending->hasSeenEnding = true;
         }
-
-        g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithRetries[g_GameManager.difficulty] = 99;
+        g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithoutRetries[g_GameManager.difficulty] = 99;
     }
-    else
-    {
-        if (g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithoutRetries[g_GameManager.difficulty] == 99)
-        {
-            ending->hasSeenEnding = true;
-        }
-    }
-    g_GameManager.clrd[shotTypeAndCharacter].difficultyClearedWithoutRetries[g_GameManager.difficulty] = 99;
     if (g_GameManager.difficulty == EASY || g_GameManager.numRetries != 0)
     {
         switch (g_GameManager.character)

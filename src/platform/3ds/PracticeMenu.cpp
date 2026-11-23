@@ -81,9 +81,8 @@ std::string PortionName(int portion) {
 std::string StageName(int stage){return stage==7?Tr("Extra","エクストラ"):Tr("Stage ","ステージ")+Number(stage);}
 std::vector<int> Stages() {
     std::vector<int> result;
-    if(g_GameManager.difficulty==EXTRA)return {7};
+    if(g_GameManager.difficulty==EXTRA)return Practice::Th06::StageAvailable(7)?std::vector<int>{7}:std::vector<int>{};
     for(int i=1;i<=6;i++)if(Practice::Th06::StageAvailable(i))result.push_back(i);
-    if(result.empty())result.push_back(1);
     return result;
 }
 bool TargetAvailable(Practice::Target target) {
@@ -97,6 +96,7 @@ std::vector<int> Targets() {
     return result;
 }
 bool Startable() {
+    if(!Practice::Th06::StageAvailable(Current().stage))return false;
     if(!EntryTarget())return true;
     const auto* entry=Selected();return entry && Practice::Th06::Encountered(*entry);
 }
@@ -104,8 +104,9 @@ void Changed(){Practice::Th06::Normalize();}
 
 std::vector<Row> SetupRows() {
     auto& s=Current();std::vector<Row> rows;
-    rows.push_back({Tr("Stage","ステージ"),StageName(s.stage),Field::Stage,0,!Extra() && Stages().size()>1});
-    rows.push_back({Tr("Start","開始地点"),TargetText(s.target),Field::Target});
+    const bool available=Practice::Th06::StageAvailable(s.stage);
+    rows.push_back({Tr("Stage","ステージ"),available?StageName(s.stage):LockedEntryText,Field::Stage,0,!Extra() && Stages().size()>1});
+    rows.push_back({Tr("Start","開始地点"),TargetText(s.target),Field::Target,0,available});
     switch(s.target) {
     case Practice::Target::Portion:rows.push_back({Tr("Portion","区間"),PortionName(s.portion),Field::Portion});break;
     case Practice::Target::Frame:rows.push_back({Tr("Frame","フレーム"),Number(s.frame),Field::Frame});break;
@@ -113,7 +114,7 @@ std::vector<Row> SetupRows() {
     default:{
         const auto* entry=Selected();const auto entries=Entries();
         const bool unlocked=std::any_of(entries.begin(),entries.end(),[](const auto* item){return Practice::Th06::Encountered(*item);});
-        rows.push_back({Tr("Section","場面"),entry?EntryText(*entry):LockedEntryText,Field::Entry,0,unlocked});
+        rows.push_back({Tr("Section","場面"),entry?EntryText(*entry):LockedEntryText,Field::Entry,0,available && unlocked});
     }
     }
     if(const auto* entry=Selected();EntryTarget() && entry && Practice::Th06::Encountered(*entry) && !entry->phases.empty())
@@ -300,7 +301,9 @@ void CtrPracticeMenu::OpenSetup(MainMenu& menu,bool atStart) {
     auto& s=Current();
     s.shot=g_GameManager.CharacterShotType();s.difficulty=g_GameManager.difficulty;
     if(g_GameManager.difficulty==EXTRA)s.stage=7;
-    else if(s.stage==7 || !Practice::Th06::StageAvailable(s.stage))s.stage=Stages().front();
+    else if(s.stage==7 || !Practice::Th06::StageAvailable(s.stage)) {
+        const auto stages=Stages();s.stage=stages.empty()?1:stages.front();
+    }
     if(!TargetAvailable(s.target))s.target=Practice::Target::Beginning;
     Changed();
     menu.gameState=STATE_PRACTICE_SETUP;menu.stateTimer=0;

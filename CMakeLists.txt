@@ -35,6 +35,7 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/SelectionFlow.cpp
     src/practice/Session.cpp
     src/practice/Th06.cpp
+    src/practice/Th06Progress.cpp
     src/practice/EclEntry.cpp
     src/practice/Th06Run.cpp
     src/platform/3ds/MenuTypeface.cpp

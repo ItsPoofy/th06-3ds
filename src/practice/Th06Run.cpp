@@ -99,6 +99,7 @@ bool Practice::Th06Run::Begin() {
     End();
     auto& session=Current();
     if(!session.Custom() || !g_GameManager.isInPracticeMode || g_GameManager.isInReplay)return true;
+    if(!Th06::StageAvailable(session.stage))return false;
     session.running=true;routeOverride=session.options.shotRoute;
     const auto& options=session.options;
     const int score=std::min<std::int64_t>(options.score,999999990);
