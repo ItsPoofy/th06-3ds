@@ -9,7 +9,7 @@ enum class Target { Beginning, Portion, Midboss, Boss, Nonspell, Spell, Frame };
 struct Options {
     int lives=8, bombs=8, power=128, graze=0, points=0, rank=32;
     std::int64_t score=0;
-    bool rankLock=false,skipDialogue=true;
+    bool rankLock=false,skipDialogue=true,repeat=false,stopAfterSection=true;
     int shotRoute=-1;
 };
 struct Entry {
@@ -37,6 +37,8 @@ struct Session {
     bool reopen=false;
     Mode previous=Mode::None;
     bool Custom() const {return mode==Mode::Custom;}
+    bool KeepsMusicOnRetry() const {return Custom() && options.stopAfterSection;}
+    bool RetriesDeath() const {return Custom() && options.repeat;}
     bool SavesPoints() const {return mode!=Mode::Custom;}
     bool SavesHistory() const {return mode!=Mode::Custom;}
 };

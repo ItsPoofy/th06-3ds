@@ -1,4 +1,6 @@
 #include "Th06Run.hpp"
+#include "Completion.hpp"
+#include "RunTransition.hpp"
 #include "Th06.hpp"
 #include "Th06NativeStarts.hpp"
 #include "EclEntry.hpp"
@@ -8,6 +10,11 @@
 #include "GameErrorContext.hpp"
 #include "Gui.hpp"
 #include "platform/3ds/GameDecorations.hpp"
+#include "platform/3ds/BossPresentation.hpp"
+#include "platform/3ds/PracticeReturn.hpp"
+#include "platform/3ds/PauseMenu.hpp"
+#include "platform/3ds/DialogueReveal.hpp"
+#include "BulletManager.hpp"
 #include "Stage.hpp"
 #include "Supervisor.hpp"
 #include <algorithm>
@@ -27,6 +34,9 @@ bool preparing=false,waiting=false,dialogueSeen=false,healthPending=false;
 int targetSub=-1,seekTime=-1,routeOverride=-1;
 bool qedRage=false;
 bool sectionReady=false;
+bool outroBlocked=false;
+bool failed=false;
+int sectionEndFrame=-1;
 
 void SeekTimeline(int frame) {
     auto* instruction=g_EclManager.timeline;
@@ -98,9 +108,14 @@ bool EnterSelected() {
 bool Practice::Th06Run::Begin() {
     End();
     auto& session=Current();
-    if(!session.Custom() || !g_GameManager.isInPracticeMode || g_GameManager.isInReplay)return true;
+    if(!session.Custom() || !g_GameManager.isInPracticeMode || g_GameManager.isInReplay) {
+        RunTransition::Reset();
+        return true;
+    }
     if(!Th06::StageAvailable(session.stage))return false;
+    if(!CtrPracticeReturn::Initialize())return false;
     session.running=true;routeOverride=session.options.shotRoute;
+    sectionEndFrame=Th06::SectionEndFrame(session);
     const auto& options=session.options;
     const int score=std::min<std::int64_t>(options.score,999999990);
     g_GameManager.score=g_GameManager.guiScore=score;
@@ -132,12 +147,29 @@ bool Practice::Th06Run::Begin() {
     return EnterSelected();
 }
 void Practice::Th06Run::End() {
+    CtrPracticeReturn::Shutdown();
+    Completion::Reset();
+    if(!RunTransition::ExitPresented())RunTransition::Reset();
+    outroBlocked=failed=false;sectionEndFrame=-1;
     Current().running=false;routeOverride=-1;qedRage=sectionReady=false;
     preparing=waiting=dialogueSeen=healthPending=false;actor=nullptr;selected=nullptr;targetSub=seekTime=-1;
     path.clear();visited.clear();graph.Clear();actorStart={};
 }
 void Practice::Th06Run::Tick() {
     if(!Current().Custom() || !Current().running)return;
+    if(Completion::Active()) {
+        const bool nameFinished=!g_Gui.impl->enemySpellcardName.flags.isVisible;
+        const bool scriptFinished=outroBlocked || !actor || !actor->flags.active || !g_Gui.BossPresent();
+        CtrPracticeReturn::Update();
+        const auto action=Completion::Tick(failed || (scriptFinished && nameFinished && !CtrBossPresentation::DefeatPlaying()));
+        if(action!=Completion::Action::None) {
+            Current().running=false;
+            Current().reopen=action==Completion::Action::ReturnPractice;
+            if(action==Completion::Action::Retry)CtrPause::RestartRun();
+            else g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+        }
+        return;
+    }
     if(waiting) {
         if(g_Gui.HasCurrentMsgIdx())dialogueSeen=true;
         if(dialogueSeen && !g_Gui.HasCurrentMsgIdx() && actor) {
@@ -158,10 +190,60 @@ bool Practice::Th06Run::Preparing(){return preparing;}
 bool Practice::Th06Run::AttackEnded(Enemy* enemy,bool spell) {
     auto& session=Current();
     if(!session.running || !sectionReady || preparing || waiting || enemy!=actor || !selected ||
-       (selected->spell>=0)!=spell)return false;
-    session.running=false;session.reopen=true;
-    g_GameManager.guiScore=g_GameManager.score;
-    g_Supervisor.curState=SUPERVISOR_STATE_RESULTSCREEN_FROMGAME;
+       (selected->spell>=0)!=spell || !session.options.stopAfterSection)return false;
+    if(Completion::Active())return true;
+    Completion::Begin(session.options.repeat,spell?Completion::Outcome::SpellCleared:Completion::Outcome::SectionCleared);
+    enemy->lifeCallbackThreshold=enemy->timerCallbackThreshold=-1;
+    g_BulletManager.DespawnBullets(12800,false);
+    return true;
+}
+void Practice::Th06Run::StageEnded() {
+    if(!Current().Custom() || !Current().running || Completion::Active())return;
+    if(g_Gui.HasCurrentMsgIdx()) {
+        g_Gui.impl->msg.currentMsgIdx=-1;
+        CtrDialogue::Reset();CtrDecorations::EndDialogue();
+    }
+    g_GameManager.isTimeStopped=false;
+    g_BulletManager.DespawnBullets(12800,false);
+    if(g_EnemyManager.spellcardInfo.isActive) {
+        g_Gui.EndEnemySpellcard();g_EnemyManager.spellcardInfo.isActive=0;
+        g_Stage.spellcardState=NOT_RUNNING;
+    }
+    Completion::Begin(Current().options.repeat);
+}
+bool Practice::Th06Run::PlayerDied() {
+    auto& session=Current();
+    if(!session.Custom() || !session.running || !g_GameManager.isInPracticeMode ||
+       g_GameManager.isInReplay || g_GameManager.demoMode)return false;
+    if(g_GameManager.livesRemaining>0 && !Completion::Active())return false;
+    if(Completion::Leaving())return true;
+    if(session.RetriesDeath()) {
+        Leave(Completion::Action::Retry);
+    } else if(!Completion::Active()) {
+        failed=outroBlocked=true;
+        StageEnded();
+    }
+    return true;
+}
+bool Practice::Th06Run::Leave(Completion::Action action) {
+    if(!Current().Custom() || !Current().running || !g_GameManager.isInPracticeMode ||
+       g_GameManager.isInReplay || g_GameManager.demoMode)return false;
+    if(Completion::Leaving())return true;
+    failed=outroBlocked=true;
+    StageEnded();Completion::BeginExit(action);
+    return true;
+}
+void Practice::Th06Run::BeforeTimeline() {
+    if(Current().running && !Completion::Active() && sectionEndFrame>=0 &&
+       g_EnemyManager.timelineTime.current>=sectionEndFrame)StageEnded();
+}
+bool Practice::Th06Run::ContinueOutro(Enemy* enemy,const EclRawInstr* instruction) {
+    if(!Completion::Active())return true;
+    if(enemy!=actor || outroBlocked || Completion::CountingDown())return false;
+    if(instruction->opCode==ECL_OPCODE_SPELLCARDSTART ||
+       (instruction->opCode==ECL_OPCODE_ENEMYLIFESET && instruction->args.setInt>0)) {
+        outroBlocked=true;enemy->flags.unk6=0;Settle(*enemy);return false;
+    }
     return true;
 }
 Practice::Th06Run::SetupStep Practice::Th06Run::BeforeInstruction(Enemy* enemy,EclRawInstr* instruction) {

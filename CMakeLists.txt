@@ -34,12 +34,15 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/SelectionArt.cpp
     src/platform/3ds/SelectionFlow.cpp
     src/practice/Session.cpp
+    src/practice/Completion.cpp
+    src/practice/RunTransition.cpp
     src/practice/Th06.cpp
     src/practice/Th06Progress.cpp
     src/practice/EclEntry.cpp
     src/practice/Th06Run.cpp
     src/platform/3ds/MenuTypeface.cpp
     src/platform/3ds/PracticeMenu.cpp
+    src/platform/3ds/PracticeReturn.cpp
     src/platform/3ds/PracticeSelection.cpp
     src/platform/3ds/SelectionLayout.cpp
     src/platform/3ds/StageScores.cpp

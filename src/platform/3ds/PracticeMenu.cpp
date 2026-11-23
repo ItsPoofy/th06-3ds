@@ -19,7 +19,7 @@
 namespace {
 enum class Page { Setup, Options, List };
 enum class Field { Stage, Target, Entry, Portion, Frame, Phase, Options, Start,
-                   Lives, Bombs, Power, Score, Graze, Points, Rank, RankLock, Dialogue, FakeShot, Defaults, Choice };
+                   Lives, Bombs, Power, Score, Graze, Points, Rank, RankLock, Dialogue, Repeat, StopAfterSection, FakeShot, Defaults, Choice };
 struct Row {std::string label,value;Field field;int argument=0;bool enabled=true;};
 struct Panel {std::string heading;std::vector<Row> rows;int cursor=0,first=0;bool centeredLast=false;};
 constexpr const char* LockedEntryText="????????";
@@ -128,6 +128,8 @@ std::vector<Row> OptionRows() {
     const Field fields[]={Field::Lives,Field::Bombs,Field::Power,Field::Score,Field::Graze,Field::Points,Field::Rank};
     for(int i=0;i<7;i++)rows.push_back({SettingName(i),Number(Practice::Th06::Value(i,o)),fields[i],i});
     rows.push_back({Tr("Rank Lock","ランク固定"),OnOff(o.rankLock),Field::RankLock});
+    rows.push_back({Tr("Repeat Until Stopped","停止するまで繰り返す"),OnOff(o.repeat),Field::Repeat});
+    rows.push_back({Tr("Stop After Section","区間終了で停止"),OnOff(o.stopAfterSection),Field::StopAfterSection});
     const auto* entry=Selected();
     rows.push_back({Tr("Skip Dialogue","会話スキップ"),OnOff(o.skipDialogue),Field::Dialogue,0,EntryTarget() && entry && entry->dialogue});
     if(Current().stage==4 && Current().target!=Practice::Target::Beginning)rows.push_back({Tr("Fake Shot","機体偽装"),RouteName(o.shotRoute),Field::FakeShot});
@@ -212,6 +214,8 @@ bool Adjust(Field field,int argument,int direction) {
     }
     case Field::RankLock:o.rankLock=!o.rankLock;Practice::Th06::SetValue(6,o.rank,o);break;
     case Field::Dialogue:o.skipDialogue=!o.skipDialogue;break;
+    case Field::Repeat:o.repeat=!o.repeat;break;
+    case Field::StopAfterSection:o.stopAfterSection=!o.stopAfterSection;break;
     case Field::FakeShot:o.shotRoute=(o.shotRoute+1+direction+5)%5-1;Changed();break;
     default:return false;
     }

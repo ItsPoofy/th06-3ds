@@ -7,4 +7,5 @@ void Begin(const Enemy* actor);
 void TrackDefeat(const Enemy* actor,const Effect* effect);
 void Retire(const Enemy* actor);
 bool Visible();
+bool DefeatPlaying();
 }

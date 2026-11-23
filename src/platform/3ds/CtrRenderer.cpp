@@ -1,4 +1,5 @@
 #include "RecordsPanel.hpp"
+#include "PracticeReturn.hpp"
 #include "MenuCanvas.hpp"
 #include "CtrRenderer.hpp"
 #include "AnmManager.hpp"
@@ -480,6 +481,7 @@ void CtrRenderer::SwapBuffers() {
         CtrDecorations::DrawHitbox(top,bottom);
         CtrHud::Draw(scene,top,bottom);
         CtrPause::Draw(top,bottom);
+        CtrPracticeReturn::Draw(top,bottom);
     } else {
         CtrSelection::DrawBottomPortraits(bottom);
         C2D_Flush();NativeBlend(true);menuLayer.Draw(bottom);C2D_Flush();NativeBlend();
@@ -490,6 +492,7 @@ void CtrRenderer::SwapBuffers() {
         CtrHud::DrawMenuFps(top);
     }
     CtrPresentation::DrawOverlays(top,bottom);
+    CtrPracticeReturn::DrawTransition(top,bottom);
     C2D_Flush();
     EndSegment();
     sceneComplete=false;

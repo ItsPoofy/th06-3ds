@@ -1,6 +1,7 @@
 #include "EnemyManager.hpp"
 #ifdef __3DS__
 #include "practice/Th06Run.hpp"
+#include "practice/Completion.hpp"
 #include "platform/3ds/BossPresentation.hpp"
 #include "platform/3ds/BossCounters.hpp"
 #include "platform/3ds/BossHealthBar.hpp"
@@ -539,7 +540,11 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
     bool local_8;
 
     local_8 = false;
-    mgr->RunEclTimeline();
+#ifdef __3DS__
+    Practice::Th06Run::BeforeTimeline();
+    if(!Practice::Completion::Active())
+#endif
+        mgr->RunEclTimeline();
     for (curEnemy = &mgr->enemies[0], mgr->enemyCount = 0, enemyIdx = 0; enemyIdx < ARRAY_SIZE_SIGNED(mgr->enemies) - 1;
          enemyIdx++, curEnemy++)
     {
@@ -602,7 +607,11 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
         if (curEnemy->flags.unk8 != 0 && !curEnemy->flags.unk15)
         {
             enemyLifeBeforeDmg = curEnemy->life;
-            if (curEnemy->flags.unk7 && curEnemy->flags.unk6)
+            if (curEnemy->flags.unk7 && curEnemy->flags.unk6
+#ifdef __3DS__
+                && !Practice::Completion::Active()
+#endif
+            )
             {
                 enemyHitbox = curEnemy->HitboxDimensions(1.5f);
                 if (g_Player.CalcKillBoxCollision(&curEnemy->position, &enemyHitbox) == 1 && curEnemy->flags.unk6 &&
@@ -611,7 +620,11 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
                     curEnemy->life -= 10;
                 }
             }
-            if (curEnemy->flags.unk6 != 0)
+            if (curEnemy->flags.unk6 != 0
+#ifdef __3DS__
+                && !Practice::Completion::Active()
+#endif
+            )
             {
                 damage = g_Player.CalcDamageToEnemy(&curEnemy->position, &curEnemy->hitboxDimensions, &local_8);
                 if (70 <= damage)
@@ -772,7 +785,10 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
             curEnemy->bossTimer.Tick();
         }
     }
-    mgr->timelineTime.Tick();
+#ifdef __3DS__
+    if(!Practice::Completion::Active())
+#endif
+        mgr->timelineTime.Tick();
 #ifdef __3DS__
     Practice::Th06Run::Tick();
 #endif

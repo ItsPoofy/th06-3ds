@@ -151,7 +151,7 @@ bool CtrAudio::LoadMusic(const char* path) {
  return true;
 }
 bool CtrAudio::MusicPlaying(const char* path) {
- if(!initialized)return false;Guard guard;return music && playing && loadedMusic==path;
+ if(!initialized)return false;Guard guard;return music && playing && (!path || loadedMusic==path);
 }
 bool CtrAudio::HasLoop(){if(!initialized)return false;Guard guard;return music && loopBlock<blocks.size();}
 namespace {

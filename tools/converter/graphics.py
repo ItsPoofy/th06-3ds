@@ -78,7 +78,7 @@ def prepare(root, resources):
     dest = root / 'romfs'
     ui = dest / 'ui'
     ui.mkdir()
-    for name in ('ui-font', 'practice-font', 'content-font', 'menu-typeface', 'menu-typeface-ja'):
+    for name in ('ui-font', 'practice-font', 'content-font', 'menu-typeface', 'menu-typeface-ja', 'practice-return'):
         write_texture(ui / (name+'.bin'), Image.open(resources/(name+'.png')))
     for lang in ('jp', 'en'):
         path = ui if lang == 'jp' else dest/'variants/en/ui'

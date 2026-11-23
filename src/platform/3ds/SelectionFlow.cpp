@@ -9,6 +9,7 @@
 #include "PracticeSelection.hpp"
 #include "PracticeMenu.hpp"
 #include "practice/Session.hpp"
+#include "practice/RunTransition.hpp"
 #include "SelectionReturn.hpp"
 #include "utils.hpp"
 #include <algorithm>
@@ -16,6 +17,7 @@
 namespace {
 bool returning=false,returnDelivered=false;int returnFrame=0,returnSource=-1;
 bool active=false,closing=false,accepted=false,yes=false,tapped=false,characterQueued=false,startRequested=false;int frame=0;
+bool startFading=false;
 float closingOpacity=1;
 float Opacity() {return closing?closingOpacity*(1-CtrMenuTiming::Progress(frame)):CtrMenuTiming::Progress(frame);}
 void Open() {
@@ -29,7 +31,7 @@ void Close(bool accept) {
     g_SoundPlayer.PlaySoundByIdx(accept?SOUND_SELECT:SOUND_BACK);
 }
 }
-void CtrSelectionFlow::Reset() {active=closing=tapped=characterQueued=returning=returnDelivered=startRequested=false;returnFrame=0;CtrSelectionReturn::Reset();}
+void CtrSelectionFlow::Reset() {active=closing=tapped=characterQueued=returning=returnDelivered=startRequested=startFading=false;returnFrame=0;CtrSelectionReturn::Reset();}
 bool CtrSelectionFlow::TakeStartRequest() {const bool start=startRequested;startRequested=false;return start;}
 float CtrSelectionFlow::ReturnProgress() {const float t=std::clamp(float(returnFrame)/CtrMenuTiming::Frames,0.f,1.f);return returning && !returnDelivered?1-(1-t)*(1-t):0;}
 bool CtrSelectionFlow::CharacterReady(const MainMenu& menu) {
@@ -38,15 +40,22 @@ bool CtrSelectionFlow::CharacterReady(const MainMenu& menu) {
     if(!ready)characterQueued=true;
     return ready;
 }
-bool CtrSelectionFlow::Confirming() {return active;}
+bool CtrSelectionFlow::Confirming() {return active || startFading;}
 bool CtrSelectionFlow::ReturnDelivered() {return returnDelivered;}
 bool CtrSelectionFlow::Touch(int x,int y) {
+    if(startFading)return true;
     if(returning)return true;
     if(!active)return false;
     if(!closing && frame>=4 && y>=112 && y<=158 && x>=40 && x<=280) {yes=x<160;tapped=true;}
     return true;
 }
 bool CtrSelectionFlow::Update(MainMenu& menu) {
+    if(startFading) {
+        if(Practice::RunTransition::ExitPresented()) {
+            startFading=false;startRequested=true;return false;
+        }
+        return true;
+    }
     const bool selection=menu.gameState==STATE_DIFFICULTY_SELECT || menu.gameState==STATE_CHARACTER_SELECT || menu.gameState==STATE_SHOT_SELECT || menu.gameState==STATE_PRACTICE_LVL_SELECT;
     if(returnDelivered)returnDelivered=false;
     if(returning && menu.gameState==returnSource) {
@@ -79,7 +88,12 @@ bool CtrSelectionFlow::Update(MainMenu& menu) {
     if(closing) {
         if(frame>=CtrMenuTiming::Frames) {
             const bool start=accepted;Reset();
-            if(start) {startRequested=true;return false;}
+            if(start) {
+                if(Practice::Current().Custom() && g_GameManager.isInPracticeMode) {
+                    startFading=true;Practice::RunTransition::BeginExit();return true;
+                }
+                startRequested=true;return false;
+            }
         }
         return true;
     }

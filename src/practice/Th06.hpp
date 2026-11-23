@@ -13,6 +13,7 @@ const char* SpellName(int spell,bool japanese);
 bool StageAvailable(int stage);
 void Normalize();
 int PortionFrame(int stage,int portion);
+int SectionEndFrame(const Session& session);
 const char* EntryName(const Entry& entry,bool japanese);
 const char* PhaseName(const Entry& entry,int phase,bool japanese);
 const char* StageName(int stage,bool japanese);

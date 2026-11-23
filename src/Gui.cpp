@@ -11,6 +11,9 @@
 #include "platform/3ds/GameplayLogo.hpp"
 #include "platform/3ds/BossHealthBar.hpp"
 #include "platform/3ds/BossSpellHud.hpp"
+#include "platform/3ds/PauseMenu.hpp"
+#include "practice/Th06Run.hpp"
+#include "practice/Session.hpp"
 #include "EnemyManager.hpp"
 #endif
 
@@ -849,6 +852,10 @@ ZunResult GuiImpl::RunMsg()
 #ifdef __3DS__
             CtrDialogue::Reset();
             CtrDecorations::EndDialogue();
+            if(Practice::Current().Custom() && g_GameManager.isInPracticeMode && !g_GameManager.isInReplay) {
+                Practice::Th06Run::StageEnded();
+                goto SKIP_TIME_INCREMENT;
+            }
 #endif
             this->finishedStage = 1;
             if (g_GameManager.currentStage < 6)
@@ -867,6 +874,12 @@ ZunResult GuiImpl::RunMsg()
             g_Supervisor.FadeOutMusic(4.0);
             break;
         case MSG_OPCODE_STAGEEND:
+#ifdef __3DS__
+            if(Practice::Current().Custom() && g_GameManager.isInPracticeMode && !g_GameManager.isInReplay) {
+                Practice::Th06Run::StageEnded();
+                goto SKIP_TIME_INCREMENT;
+            }
+#endif
             g_GameManager.guiScore = g_GameManager.score;
             if (g_GameManager.isInPracticeMode)
             {
@@ -1674,7 +1687,11 @@ ZunResult Gui::DeletedCallback(Gui *gui)
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_B);
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_C);
     gui->FreeMsgFile();
-    if ((i32)(g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT))
+    if (g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT
+#ifdef __3DS__
+        || CtrPause::RestartPending()
+#endif
+    )
     {
         g_AnmManager->ReleaseAnm(ANM_FILE_FRONT);
         g_AnmManager->ReleaseAnm(ANM_FILE_LOADING);

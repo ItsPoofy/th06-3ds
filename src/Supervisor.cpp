@@ -25,6 +25,8 @@
 #include "platform/3ds/CtrRenderer.hpp"
 #include "platform/3ds/GameLoop.hpp"
 #include "platform/3ds/PauseMenu.hpp"
+#include "platform/3ds/NdspAudio.hpp"
+#include "practice/Session.hpp"
 #endif
 
 #include <SDL2/SDL_joystick.h>
@@ -726,6 +728,10 @@ ZunResult Supervisor::PlayAudio(const char *path)
         const int prefixLength=extension-path;
         std::snprintf(wavName,sizeof(wavName),"%.*s.wav",prefixLength,path);
         std::snprintf(wavPos,sizeof(wavPos),"%.*s.pos",prefixLength,path);
+#ifdef __3DS__
+        if(Practice::Current().running && Practice::Current().KeepsMusicOnRetry() &&
+           CtrAudio::MusicPlaying(wavName))return ZUN_SUCCESS;
+#endif
         if(g_SoundPlayer.LoadWav(wavName)!=ZUN_SUCCESS) return ZUN_ERROR;
         if (g_SoundPlayer.LoadPos(wavPos) < ZUN_SUCCESS)
         {
@@ -769,6 +775,9 @@ ZunResult Supervisor::StopAudio()
 
 ZunResult Supervisor::FadeOutMusic(f32 fadeOutSeconds)
 {
+#ifdef __3DS__
+    if(Practice::Current().running && Practice::Current().KeepsMusicOnRetry())return ZUN_SUCCESS;
+#endif
     if (g_Supervisor.cfg.musicMode == MIDI)
     {
         if (g_Supervisor.midiOutput != NULL)

@@ -20,6 +20,7 @@
 #ifdef __3DS__
 #include "platform/3ds/BossCounters.hpp"
 #include "practice/Th06Run.hpp"
+#include "practice/Completion.hpp"
 #include "practice/Th06Progress.hpp"
 #include "platform/3ds/BossPresentation.hpp"
 #endif
@@ -116,6 +117,7 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
 {
 #ifdef __3DS__
     const bool setup=Practice::Th06Run::Preparing();
+    const bool finishing=Practice::Completion::Active();
 #endif
     EclRawInstr *instruction;
     EclRawInstrArgs *args;
@@ -162,6 +164,9 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
             }
 
             args = &instruction->args;
+#ifdef __3DS__
+            if(finishing && !Practice::Th06Run::ContinueOutro(enemy,instruction))return ZUN_SUCCESS;
+#endif
             switch (instruction->opCode)
             {
             case ECL_OPCODE_UNIMP:
@@ -866,6 +871,7 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
 #ifdef __3DS__
                     if(Practice::Th06Run::AttackEnded(enemy,true)) {
                         g_Stage.spellcardState=NOT_RUNNING;
+                        enemy->currentContext.currentInstr=(EclRawInstr*)((u8*)instruction+instruction->offsetToNext);
                         return ZUN_SUCCESS;
                     }
 #endif
@@ -1082,7 +1088,11 @@ ZunResult EclManager::RunEcl(Enemy *enemy)
             }
             if (0 < enemy->life)
             {
-                if (0 < enemy->shootInterval)
+                if (0 < enemy->shootInterval
+#ifdef __3DS__
+                    && !finishing
+#endif
+                )
                 {
                     enemy->shootIntervalTimer.Tick();
                     if (enemy->shootIntervalTimer.current >= enemy->shootInterval)

@@ -4,6 +4,8 @@
 #include "practice/Th06Run.hpp"
 #include "practice/Th06Progress.hpp"
 #include "platform/3ds/Runtime.hpp"
+#include "practice/Completion.hpp"
+#include "practice/RunTransition.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/PauseMenu.hpp"
 #include "platform/3ds/StageScores.hpp"
@@ -136,7 +138,11 @@ ChainCallbackResult GameManager::OnUpdate(GameManager *gameManager)
         }
     }
     if (!gameManager->isInRetryMenu && !gameManager->isInGameMenu && !gameManager->demoMode &&
-        WAS_PRESSED(TH_BUTTON_MENU))
+        WAS_PRESSED(TH_BUTTON_MENU)
+#ifdef __3DS__
+        && !Practice::Completion::Active()
+#endif
+    )
     {
         gameManager->isInGameMenu = 1;
 #ifdef __3DS__
@@ -280,10 +286,12 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
     i32 padding[3];
 
     failedToLoadReplay = false;
+    const bool freshRun=g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT;
 #ifdef __3DS__
-    if(g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT) CtrPause::CaptureRun();
+    const bool preserveRetryMusic=CtrPause::TakeRetryMusic();
+    if(freshRun)CtrPause::CaptureRun();
 #endif
-    if (g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT)
+    if (freshRun)
     {
         g_Supervisor.defaultConfig.bombCount = g_GameManager.bombsRemaining;
         g_Supervisor.defaultConfig.lifeCount = g_GameManager.livesRemaining;
@@ -456,11 +464,14 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
     if (g_GameManager.demoMode == 0)
     {
         g_Supervisor.ReadMidiFile(1, g_Stage.stdData->songPaths[1]);
+#ifdef __3DS__
+        if(!preserveRetryMusic)
+#endif
         g_Supervisor.PlayAudio(g_Stage.stdData->songPaths[0]);
     }
     mgr->isInRetryMenu = 0;
     mgr->isInMenu = 1;
-    if (g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT)
+    if (freshRun)
     {
         g_Supervisor.unk1b4 = 0.0;
         g_Supervisor.unk1b8 = 0.0;
@@ -481,6 +492,8 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
     if(!Practice::Th06Run::Begin()) {
         g_GameErrorContext.Log("The selected practice section could not be initialized\n");
         g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+    } else if(Practice::Current().Custom() && Practice::Current().running) {
+        Practice::RunTransition::BeginEntry();
     } else if(!mgr->isInReplay && !mgr->demoMode && !Practice::Current().Custom() &&
               !Practice::Th06Progress::VisitStage(mgr->difficulty,mgr->currentStage)) {
         CtrRuntime::Log("Unable to save practice stage visit");
@@ -496,7 +509,11 @@ ZunResult GameManager::DeletedCallback(GameManager *mgr)
 #endif
     i32 padding1, padding2, padding3;
 
-    if (!g_GameManager.demoMode)
+    if (!g_GameManager.demoMode
+#ifdef __3DS__
+        && !CtrPause::PreserveRetryMusic()
+#endif
+    )
     {
         g_Supervisor.StopAudio();
     }

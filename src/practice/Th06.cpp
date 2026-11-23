@@ -72,6 +72,18 @@ int Practice::Th06::PortionFrame(int stage,int portion) {
     };
     return frames[stage-1][portion-1];
 }
+int Practice::Th06::SectionEndFrame(const Session& session) {
+    if(!session.options.stopAfterSection)return -1;
+    const auto& stage=GetStage(session.stage);
+    const int count=stage.firstPortions+stage.secondPortions;
+    if(session.target==Target::Portion && session.portion<count)return PortionFrame(session.stage,session.portion+1);
+    if(session.target==Target::Frame)for(int portion=1;portion<=count;portion++) {
+        const int frame=PortionFrame(session.stage,portion);
+        if(frame>session.frame)return frame;
+    }
+    return -1;
+}
+
 Practice::Setting Practice::Th06::StartSetting(int index,const Options& options) {
     static constexpr Setting settings[]={
         {"Lives",0,8,1},{"Bombs",0,8,1},{"Power",0,128,1},{"Score",0,999999990LL,10},

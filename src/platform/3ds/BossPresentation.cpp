@@ -26,6 +26,9 @@ void CtrBossPresentation::Retire(const Enemy* enemy) {
 }
 bool CtrBossPresentation::Visible() {
     if(actor && actor->flags.active)return true;
+    return DefeatPlaying();
+}
+bool CtrBossPresentation::DefeatPlaying() {
     for(const auto& entry:explosions)if(entry.Playing())return true;
     return false;
 }

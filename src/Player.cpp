@@ -1,4 +1,7 @@
 #include "Player.hpp"
+#ifdef __3DS__
+#include "practice/Th06Run.hpp"
+#endif
 
 #include <cmath>
 #include <cstring>
@@ -235,6 +238,9 @@ ChainCallbackResult Player::OnUpdate(Player *p)
             p->previousVerticalSpeed = 0.0f;
             if (p->invulnerabilityTimer.AsFrames() >= 30)
             {
+#ifdef __3DS__
+                if(Practice::Th06Run::PlayerDied())return CHAIN_CALLBACK_RESULT_CONTINUE;
+#endif
                 p->playerState = PLAYER_STATE_SPAWNING;
                 p->positionCenter.x = g_GameManager.arcadeRegionSize.x / 2.0f;
                 p->positionCenter.y = g_GameManager.arcadeRegionSize.y - 64.0f;

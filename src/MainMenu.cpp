@@ -30,6 +30,7 @@
 #include "platform/3ds/PracticeMenu.hpp"
 #include "platform/3ds/NdspAudio.hpp"
 #include "practice/Session.hpp"
+#include "practice/RunTransition.hpp"
 #include "platform/3ds/StageScores.hpp"
 #include "platform/3ds/SelectionReturn.hpp"
 #include "platform/3ds/SelectionFlow.hpp"
@@ -199,6 +200,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                 menu->gameState = STATE_PRACTICE_LVL_SELECT;
                 menu->cursor = g_GameManager.menuCursorBackup;
             }
+            if(Practice::RunTransition::ExitPresented())Practice::RunTransition::BeginEntry();
             break;
         }
         if (g_ReturnToMenuList)
@@ -1283,6 +1285,7 @@ ZunResult MainMenu::BeginStartup()
     this->gameState = STATE_PRE_INPUT;
 #ifdef __3DS__
     CtrRuntime::Log("Title menu ready");
+    if(Practice::RunTransition::ExitPresented())Practice::RunTransition::BeginEntry();
     CtrGameLoop::ResetClock();
 #endif
     return ZUN_SUCCESS;
@@ -2584,12 +2587,15 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
 #endif
             g_Supervisor.PlayAudio("bgm/th06_01.mid");
 #ifdef __3DS__
-            if (!g_ReturnToMenuList)
+            if (!g_ReturnToMenuList && !Practice::RunTransition::ExitPresented())
 #endif
             ScreenEffect::RegisterChain(SCREEN_EFFECT_FADE_IN, MenuDuration(120), titleFadeColor, 0, 0);
         }
         else
         {
+#ifdef __3DS__
+            if(!Practice::RunTransition::ExitPresented())
+#endif
             ScreenEffect::RegisterChain(SCREEN_EFFECT_FADE_IN, MenuDuration(200), titleFadeColor, 0, 0);
         }
     }

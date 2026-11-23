@@ -1,6 +1,7 @@
 #include "MenuAnimation.hpp"
 #include "MenuTiming.hpp"
 #include "PauseMenu.hpp"
+#include "NdspAudio.hpp"
 #include "Presentation.hpp"
 #include "Touch.hpp"
 #include "StageMenu.hpp"
@@ -11,6 +12,7 @@
 #include "LatchedInput.hpp"
 #include "utils.hpp"
 #include "practice/Session.hpp"
+#include "practice/Th06Run.hpp"
 #include <algorithm>
 namespace {
 enum State {Closed,Choices,ConfirmQuit,ConfirmRestart,ConfirmPractice};
@@ -22,6 +24,7 @@ float ChoiceY(int row) {return (PracticeRun()?64:80)+32*row;}
 State state=Closed;Action action=Resume;
 StageMenu* active=nullptr;CtrMenuTiming::Clock clocks[6];
 int cursor=0,closeFrame=0;bool yes=false,pendingRestart=false,closing=false;
+bool retryMusic=false;
 struct Run {int stage;Difficulty difficulty;u8 character,shot,practice;i8 lives,bombs;bool valid=false;} run;
 void Close(StageMenu& menu) {
     state=Closed;active=nullptr;menu.curState=0;menu.numFrames=0;g_GameManager.isInGameMenu=0;
@@ -47,7 +50,7 @@ void Text(const char* label,float x,float y,int index,bool selected=false) {
 void CtrPause::CaptureRun() {
     run={g_GameManager.currentStage,g_GameManager.difficulty,g_GameManager.character,g_GameManager.shotType,
          g_GameManager.isInPracticeMode,g_GameManager.livesRemaining,g_GameManager.bombsRemaining,true};
-    state=Closed;pendingRestart=false;closing=false;active=nullptr;CtrLatchedInput::Reset();
+    state=Closed;pendingRestart=false;retryMusic=false;closing=false;active=nullptr;CtrLatchedInput::Reset();
 }
 bool CtrPause::RestoreRun() {
     if(!pendingRestart || !run.valid)return false;
@@ -60,6 +63,14 @@ bool CtrPause::RestoreRun() {
     g_Supervisor.curState=SUPERVISOR_STATE_GAMEMANAGER;
     return true;
 }
+void CtrPause::RestartRun() {
+    retryMusic=Practice::Current().KeepsMusicOnRetry() && g_GameManager.isInPracticeMode &&
+        !g_GameManager.isInReplay && !g_GameManager.demoMode && CtrAudio::MusicPlaying();
+    pendingRestart=true;g_Supervisor.curState=SUPERVISOR_STATE_GAMEMANAGER_REINIT;
+}
+bool CtrPause::PreserveRetryMusic() {return retryMusic;}
+bool CtrPause::TakeRetryMusic() {const bool preserve=retryMusic;retryMusic=false;return preserve;}
+bool CtrPause::RestartPending() {return pendingRestart;}
 int CtrPause::Update(StageMenu& menu) {
     if(!menu.curState) {
         active=&menu;cursor=0;yes=false;closing=false;menu.curState=1;Open(Choices,menu);
@@ -68,9 +79,13 @@ int CtrPause::Update(StageMenu& menu) {
     if(closing) {
         if(++closeFrame>=CtrMenuTiming::Frames) {
             const Action next=action;Close(menu);closing=false;
-            if(next==Restart) {pendingRestart=true;g_Supervisor.curState=SUPERVISOR_STATE_GAMEMANAGER_REINIT;}
-            else if(next==Quit)g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
-            else if(next==ReturnPractice) {Practice::Current().reopen=true;g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;}
+            if(next==Restart) {
+                if(!Practice::Th06Run::Leave(Practice::Completion::Action::Retry))RestartRun();
+            } else if(next==Quit) {
+                if(!Practice::Th06Run::Leave(Practice::Completion::Action::Quit))g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+            } else if(next==ReturnPractice && !Practice::Th06Run::Leave(Practice::Completion::Action::ReturnPractice)) {
+                Practice::Current().reopen=true;g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
+            }
         }
         return 0;
     }
