@@ -2,6 +2,7 @@
 #include "platform/3ds/Runtime.hpp"
 #endif
 #include "EclManager.hpp"
+#include "practice/Retry.hpp"
 #include "practice/Session.hpp"
 #include "AnmManager.hpp"
 #include "EffectManager.hpp"
@@ -52,7 +53,14 @@ ZunResult EclManager::Load(const char *eclPath)
 
     i32 idx;
 
-    this->eclFile = (EclRawHeader *)FileSystem::OpenPath(eclPath, false);
+    const bool reuse=Practice::Retry::Restoring() && eclFile && loadedPath==eclPath && !retryImage.empty();
+    if(reuse) {
+        std::memcpy(const_cast<EclRawHeader*>(eclFile),retryImage.data(),retryImage.size());
+        g_LastFileSize=fileSize;
+    } else {
+        Unload();
+        this->eclFile = (EclRawHeader *)FileSystem::OpenPath(eclPath, false);
+    }
 
     if (this->eclFile == NULL)
     {
@@ -61,9 +69,11 @@ ZunResult EclManager::Load(const char *eclPath)
     }
 
     fileSize=g_LastFileSize;
+    if(!reuse && Practice::Current().Custom())retryImage.assign((const u8*)eclFile,(const u8*)eclFile+fileSize);
+    loadedPath=eclPath;
     this->timelinePtrs[0] = (EclTimelineInstr *)(((u8 *)this->eclFile) + this->eclFile->timelineOffsets[0]);
 
-    this->subTable = (EclRawInstr **)malloc(sizeof(EclRawInstr *) * this->eclFile->subCount);
+    if(!reuse)this->subTable = (EclRawInstr **)malloc(sizeof(EclRawInstr *) * this->eclFile->subCount);
 
     if(!subTable) {g_GameErrorContext.Log("ECL subroutine allocation failed\n");Unload();return ZUN_ERROR;}
     for (idx = 0; idx < this->eclFile->subCount; idx++)
@@ -96,11 +106,13 @@ ZunResult EclManager::Load(const char *eclPath)
 
 void EclManager::Unload()
 {
+    if(Practice::Retry::Releasing())return;
     free((void *)this->eclFile);
     this->eclFile = NULL;
 
     free(this->subTable);
     this->subTable = NULL;
+    retryImage.clear();loadedPath.clear();fileSize=0;
 
     return;
 }

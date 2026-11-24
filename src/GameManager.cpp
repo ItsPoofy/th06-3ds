@@ -1,4 +1,5 @@
 #include "GameManager.hpp"
+#include "practice/Retry.hpp"
 #ifdef __3DS__
 #include "practice/Session.hpp"
 #include "practice/Th06Run.hpp"
@@ -286,7 +287,7 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
     i32 padding[3];
 
     failedToLoadReplay = false;
-    const bool freshRun=g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT;
+    const bool freshRun=g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT || Practice::Retry::Restoring();
 #ifdef __3DS__
     const bool preserveRetryMusic=CtrPause::TakeRetryMusic();
     if(freshRun)CtrPause::CaptureRun();

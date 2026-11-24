@@ -12,6 +12,7 @@
 #include "Supervisor.hpp"
 #include "utils.hpp"
 #include "practice/Completion.hpp"
+#include "practice/Retry.hpp"
 #include "practice/RunTransition.hpp"
 #include "../../../assets/practice_return.hpp"
 #include <algorithm>
@@ -37,6 +38,7 @@ bool CtrPracticeReturn::Initialize() {
 }
 void CtrPracticeReturn::Shutdown() {
     opened=false;
+    if(Practice::Retry::Releasing() || Practice::Retry::Restoring())return;
     if(atlas.ready && g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
     atlas.Clear();
 }

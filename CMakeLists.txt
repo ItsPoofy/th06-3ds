@@ -35,6 +35,7 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/SelectionFlow.cpp
     src/practice/Session.cpp
     src/practice/Completion.cpp
+    src/practice/Retry.cpp
     src/practice/RunTransition.cpp
     src/practice/Th06.cpp
     src/practice/Th06Progress.cpp

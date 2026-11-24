@@ -2,6 +2,7 @@
 #include "platform/3ds/Runtime.hpp"
 #endif
 #include "Gui.hpp"
+#include "practice/Retry.hpp"
 #ifdef __3DS__
 #include "platform/3ds/GameDecorations.hpp"
 #include "platform/3ds/PlayfieldText.hpp"
@@ -354,8 +355,9 @@ void Gui::ShowSpellcard(i32 spellcardSprite, const char *spellcardName)
 ZunResult Gui::ActualAddedCallback()
 {
     i32 idx;
+    const bool freshRun=g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT || Practice::Retry::Restoring();
 
-    if ((i32)(g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT))
+    if (freshRun)
     {
         memset(this->impl, 0, sizeof(GuiImpl));
         if (g_AnmManager->LoadAnm(ANM_FILE_FRONT, "data/front.anm", ANM_OFFSET_FRONT) != ZUN_SUCCESS)
@@ -515,7 +517,7 @@ ZunResult Gui::ActualAddedCallback()
         }
         break;
     }
-    if ((i32)(g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT))
+    if (freshRun)
     {
         for (idx = 0; idx < ARRAY_SIZE_SIGNED(this->impl->vms); idx++)
         {
@@ -1687,9 +1689,9 @@ ZunResult Gui::DeletedCallback(Gui *gui)
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_B);
     g_AnmManager->ReleaseAnm(ANM_FILE_FACE_STAGE_C);
     gui->FreeMsgFile();
-    if (g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT
+    if (g_Supervisor.curState!=SUPERVISOR_STATE_GAMEMANAGER_REINIT || Practice::Retry::Restoring()
 #ifdef __3DS__
-        || CtrPause::RestartPending()
+        || (CtrPause::RestartPending() && !Practice::Retry::Releasing())
 #endif
     )
     {
@@ -1707,7 +1709,11 @@ ZunResult Gui::DeletedCallback(Gui *gui)
 ZunResult Gui::RegisterChain()
 {
     Gui *gui = &g_Gui;
-    if ((i32)(g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT))
+    if(Practice::Retry::Restoring()) {
+        GuiImpl* retained=gui->impl;
+        std::memset(gui,0,sizeof(Gui));gui->impl=retained;
+    }
+    else if ((i32)(g_Supervisor.curState != SUPERVISOR_STATE_GAMEMANAGER_REINIT))
     {
         std::memset(gui, 0, sizeof(Gui));
         gui->impl = new GuiImpl();

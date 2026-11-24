@@ -1,4 +1,5 @@
 #include "AnmManager.hpp"
+#include "practice/Retry.hpp"
 #include "FileSystem.hpp"
 #include "GameErrorContext.hpp"
 #include "Rng.hpp"
@@ -18,6 +19,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <new>
+#include <array>
+#include <string>
 
 #include <SDL2/SDL_image.h>
 #include <SDL2/SDL_rwops.h>
@@ -27,6 +30,7 @@ static VertexTex1Xyzrhw g_PrimitivesToDrawVertexBuf[4];
 static VertexTex1DiffuseXyzrhw g_PrimitivesToDrawNoVertexBuf[4];
 static VertexTex1DiffuseXyz g_PrimitivesToDrawUnknown[4];
 AnmManager *g_AnmManager;
+static std::array<std::string,128> g_AnmPaths;
 
 static const SDL_PixelFormatEnum g_TextureFormatSDLMapping[6] = {SDL_PIXELFORMAT_UNKNOWN,  SDL_PIXELFORMAT_RGBA32,
                                                                  SDL_PIXELFORMAT_RGBA5551, SDL_PIXELFORMAT_RGB565,
@@ -471,8 +475,12 @@ ZunResult AnmManager::CreateEmptyTexture(i32 textureIdx, u32 width, u32 height, 
 
 ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
 {
-    this->ReleaseAnm(anmIdx);
-    this->anmFiles[anmIdx] = (AnmRawEntry *)FileSystem::OpenPath(path, 0);
+    const bool reuse=Practice::Retry::Restoring() && this->anmFiles[anmIdx] &&
+        g_AnmPaths[anmIdx]==path && this->anmFilesSpriteIndexOffsets[anmIdx]==u32(spriteIdxOffset);
+    if(!reuse) {
+        this->ReleaseAnm(anmIdx);
+        this->anmFiles[anmIdx] = (AnmRawEntry *)FileSystem::OpenPath(path, 0);
+    }
 
     AnmRawEntry *anm = this->anmFiles[anmIdx];
 
@@ -499,33 +507,36 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
         anm->format = TEX_FMT_A8R8G8B8;
     }
 
-    bool prepared=false;
+    if(reuse && *anmName=='@')this->ReleaseTexture(anm->textureIdx);
+    if(!reuse || *anmName=='@') {
+        bool prepared=false;
 #ifdef __3DS__
-    if(*anmName!='@') {
-        auto& texture=textures[anmIdx];
-        texture.handle=static_cast<CtrRenderer*>(g_GfxBackend)->LoadPreparedTexture(path,texture.width,texture.height);
-        prepared=texture.handle!=0;
-        if(prepared) texture.format=TEX_FMT_A8R8G8B8;
-    }
+        if(*anmName!='@') {
+            auto& texture=textures[anmIdx];
+            texture.handle=static_cast<CtrRenderer*>(g_GfxBackend)->LoadPreparedTexture(path,texture.width,texture.height);
+            prepared=texture.handle!=0;
+            if(prepared) texture.format=TEX_FMT_A8R8G8B8;
+        }
 #endif
-    if(prepared) {}
-    else if (*anmName == '@')
-    {
-        this->CreateEmptyTexture(anm->textureIdx, anm->width, anm->height, anm->format);
-    }
-    else if (this->LoadTexture(anm->textureIdx, anmName, anm->format, anm->colorKey) != ZUN_SUCCESS)
-    {
-        g_GameErrorContext.Fatal(TH_ERR_ANMMANAGER_TEXTURE_CORRUPTED, anmName);
-        return ZUN_ERROR;
-    }
-
-    if (!prepared && anm->alphaNameOffset != 0)
-    {
-        anmName = (char *)((u8 *)anm + anm->alphaNameOffset);
-        if (this->LoadTextureAlphaChannel(anm->textureIdx, anmName, anm->format, anm->colorKey) != ZUN_SUCCESS)
+        if(prepared) {}
+        else if (*anmName == '@')
+        {
+            this->CreateEmptyTexture(anm->textureIdx, anm->width, anm->height, anm->format);
+        }
+        else if (this->LoadTexture(anm->textureIdx, anmName, anm->format, anm->colorKey) != ZUN_SUCCESS)
         {
             g_GameErrorContext.Fatal(TH_ERR_ANMMANAGER_TEXTURE_CORRUPTED, anmName);
             return ZUN_ERROR;
+        }
+
+        if (!prepared && anm->alphaNameOffset != 0)
+        {
+            anmName = (char *)((u8 *)anm + anm->alphaNameOffset);
+            if (this->LoadTextureAlphaChannel(anm->textureIdx, anmName, anm->format, anm->colorKey) != ZUN_SUCCESS)
+            {
+                g_GameErrorContext.Fatal(TH_ERR_ANMMANAGER_TEXTURE_CORRUPTED, anmName);
+                return ZUN_ERROR;
+            }
         }
     }
 
@@ -578,12 +589,14 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
     }
 
     this->anmFilesSpriteIndexOffsets[anmIdx] = spriteIdxOffset;
+    g_AnmPaths[anmIdx]=path;
 
     return ZUN_SUCCESS;
 }
 
 void AnmManager::ReleaseAnm(i32 anmIdx)
 {
+    if(Practice::Retry::Releasing())return;
     if (this->anmFiles[anmIdx] != NULL)
     {
         const LE<i32> *spriteIdx;
@@ -609,6 +622,7 @@ void AnmManager::ReleaseAnm(i32 anmIdx)
         AnmRawEntry *anmFilePtr = this->anmFiles[anmIdx];
         free(anmFilePtr);
         this->anmFiles[anmIdx] = 0;
+        g_AnmPaths[anmIdx].clear();
         this->currentBlendMode = 0xff;
         this->currentTextureHandle = 0;
     }

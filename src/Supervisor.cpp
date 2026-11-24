@@ -27,6 +27,7 @@
 #include "platform/3ds/PauseMenu.hpp"
 #include "platform/3ds/NdspAudio.hpp"
 #include "practice/Session.hpp"
+#include "practice/Retry.hpp"
 #endif
 
 #include <SDL2/SDL_joystick.h>
@@ -172,11 +173,21 @@ ChainCallbackResult Supervisor::OnUpdate(Supervisor *s)
                 }
                 break;
             case SUPERVISOR_STATE_GAMEMANAGER_REINIT:
+            {
+#ifdef __3DS__
+                if(CtrPause::FastRetry())Practice::Retry::Begin();
+#endif
                 GameManager::CutChain();
 #ifdef __3DS__
+                Practice::Retry::Restore();
                 CtrPause::RestoreRun();
 #endif
-                if (GameManager::RegisterChain() != ZUN_SUCCESS)
+                const auto result=GameManager::RegisterChain();
+                if(result!=ZUN_SUCCESS)GameManager::CutChain();
+#ifdef __3DS__
+                Practice::Retry::End();
+#endif
+                if (result != ZUN_SUCCESS)
                 {
                     return CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS;
                 }
@@ -186,6 +197,7 @@ ChainCallbackResult Supervisor::OnUpdate(Supervisor *s)
                 }
                 s->curState = SUPERVISOR_STATE_GAMEMANAGER;
                 break;
+            }
             case SUPERVISOR_STATE_MAINMENU_REPLAY:
                 GameManager::CutChain();
                 s->curState = SUPERVISOR_STATE_INIT;

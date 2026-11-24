@@ -12,6 +12,7 @@
 #include "LatchedInput.hpp"
 #include "utils.hpp"
 #include "practice/Session.hpp"
+#include "practice/Retry.hpp"
 #include "practice/Th06Run.hpp"
 #include <algorithm>
 namespace {
@@ -60,7 +61,7 @@ bool CtrPause::RestoreRun() {
     g_GameManager.isInPracticeMode=run.practice;
     g_GameManager.livesRemaining=run.lives;g_GameManager.bombsRemaining=run.bombs;
     g_GameManager.isInReplay=0;g_GameManager.demoMode=0;
-    g_Supervisor.curState=SUPERVISOR_STATE_GAMEMANAGER;
+    if(!Practice::Retry::Restoring())g_Supervisor.curState=SUPERVISOR_STATE_GAMEMANAGER;
     return true;
 }
 void CtrPause::RestartRun() {
@@ -71,6 +72,12 @@ void CtrPause::RestartRun() {
 bool CtrPause::PreserveRetryMusic() {return retryMusic;}
 bool CtrPause::TakeRetryMusic() {const bool preserve=retryMusic;retryMusic=false;return preserve;}
 bool CtrPause::RestartPending() {return pendingRestart;}
+bool CtrPause::FastRetry() {
+    const auto& session=Practice::Current();
+    return pendingRestart && run.valid && session.Custom() && g_GameManager.isInPracticeMode &&
+        !g_GameManager.isInReplay && !g_GameManager.demoMode && session.stage==g_GameManager.currentStage &&
+        session.difficulty==g_GameManager.difficulty && session.shot==g_GameManager.CharacterShotType();
+}
 int CtrPause::Update(StageMenu& menu) {
     if(!menu.curState) {
         active=&menu;cursor=0;yes=false;closing=false;menu.curState=1;Open(Choices,menu);

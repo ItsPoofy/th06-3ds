@@ -7,6 +7,7 @@
 #include "platform/3ds/CtrRenderer.hpp"
 #endif
 #include "Stage.hpp"
+#include "practice/Retry.hpp"
 #include "AnmIdx.hpp"
 #include "AnmManager.hpp"
 #include "Chain.hpp"
@@ -354,9 +355,15 @@ ZunResult Stage::RegisterChain(u32 stage)
     Stage *stg = &g_Stage;
     ZunTimer *timer;
 
+    auto* retainedQuads=stg->quadVms;
+    const auto* retainedData=stg->stdData;
+    auto** retainedObjects=stg->objects;
     memset(stg, 0, sizeof(Stage));
     stg->stdData = NULL;
     stg->objects = NULL;
+    if(Practice::Retry::Restoring()) {
+        stg->quadVms=retainedQuads;stg->stdData=retainedData;stg->objects=retainedObjects;
+    }
 
     timer = &stg->timer;
     timer->InitializeForPopup();
@@ -392,6 +399,7 @@ ZunResult Stage::DeletedCallback(Stage *s)
 #ifdef __3DS__
     CtrStageDepth::Clear();
 #endif
+    if(Practice::Retry::Releasing())return ZUN_SUCCESS;
     g_AnmManager->ReleaseAnm(ANM_FILE_STAGEBG);
     if (s->quadVms != NULL)
     {
@@ -436,7 +444,8 @@ ZunResult Stage::LoadStageData(const char *anmpath, const char *stdpath)
     {
         return ZUN_ERROR;
     }
-    this->stdData = (RawStageHeader *)FileSystem::OpenPath(stdpath, false);
+    const bool reuse=Practice::Retry::Restoring();
+    if(!reuse)this->stdData = (RawStageHeader *)FileSystem::OpenPath(stdpath, false);
     if (this->stdData == NULL)
     {
         g_GameErrorContext.Log(TH_ERR_STAGE_DATA_CORRUPTED);
@@ -451,7 +460,7 @@ ZunResult Stage::LoadStageData(const char *anmpath, const char *stdpath)
     this->beginningOfScript = (RawStageInstr *)(this->stdData->scriptOffset + ((u8 *)this->stdData));
     const LE<u32> *objectOffsets = (LE<u32> *)(this->stdData + 1);
 
-    this->objects = (RawStageObject **)malloc(sizeof(RawStageObject *) * this->objectsCount);
+    if(!reuse)this->objects = (RawStageObject **)malloc(sizeof(RawStageObject *) * this->objectsCount);
 
     if(!objects) {g_GameErrorContext.Log("Stage object allocation failed\n");return ZUN_ERROR;}
     for (idx = 0; idx < this->objectsCount; idx++)
@@ -460,7 +469,7 @@ ZunResult Stage::LoadStageData(const char *anmpath, const char *stdpath)
     }
 
     sizeVmArr = this->quadCount * sizeof(AnmVm);
-    this->quadVms = (AnmVm *)malloc(sizeVmArr);
+    if(!reuse)this->quadVms = (AnmVm *)malloc(sizeVmArr);
     if(!quadVms) {g_GameErrorContext.Log("Stage animation allocation failed\n");return ZUN_ERROR;}
     for (idx = 0, vmIdx = 0; idx < this->objectsCount; idx++)
     {

@@ -1,4 +1,6 @@
 #pragma once
+#include <string>
+#include <vector>
 #include <cstddef>
 
 #include "ItemManager.hpp"
@@ -489,6 +491,9 @@ struct EclManager
     const EclTimelineInstr *timelinePtrs[3];
     EclRawInstr **subTable;
     const EclTimelineInstr *timeline;
+private:
+    std::vector<u8> retryImage;
+    std::string loadedPath;
 };
 
 extern EclManager g_EclManager;
