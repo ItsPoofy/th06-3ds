@@ -60,7 +60,9 @@ std::string CtrOptions::Value(int row) {
   case Item::Hitbox:return Enabled(Toggle::Hitbox)?"On":"Off";
   case Item::QuickInfo:return Enabled(Toggle::QuickInfo)?"On":"Off";
   case Item::Fps:return Enabled(Toggle::Fps)?"On":"Off";
-  case Item::BossBar:return Enabled(Toggle::BossBar) && CtrBossHealthBar::Available()?"New":"OG";
+  case Item::BossBar:
+   if(BossBar()==BossBarStyle::Classic)return "Classic";
+   return BossBar()==BossBarStyle::Modern && CtrBossHealthBar::Available()?"Modern":"OG";
   case Item::Bgm:return std::to_string(BgmVolume())+"%";
   case Item::Sfx:return std::to_string(SfxVolume())+"%";
   case Item::Sound:return SoundPackName();
@@ -73,8 +75,7 @@ std::string CtrOptions::Value(int row) {
 bool CtrOptions::Adjustable(int row) {
  if(page<0)return false;
  const auto item=At(row);
- return item!=Item::Keys && item<Item::Reset && !(item==Item::Alignment && CtrSettings::Mode()==CtrSettings::ScreenMode::TopOnly) &&
-        !(item==Item::BossBar && !CtrBossHealthBar::Available());
+ return item!=Item::Keys && item<Item::Reset && !(item==Item::Alignment && CtrSettings::Mode()==CtrSettings::ScreenMode::TopOnly);
 }
 int CtrOptions::Update(MainMenu& menu) {
     const int count=RowCount();
@@ -104,7 +105,7 @@ int CtrOptions::Update(MainMenu& menu) {
             case Item::Hitbox:ChangeToggle(Toggle::Hitbox);break;
             case Item::QuickInfo:ChangeToggle(Toggle::QuickInfo);break;
             case Item::Fps:ChangeToggle(Toggle::Fps);break;
-            case Item::BossBar:ChangeToggle(Toggle::BossBar);break;
+            case Item::BossBar:ChangeBossBar(direction,CtrBossHealthBar::Available());break;
             case Item::Bgm:ChangeVolume(true,direction);break;
             case Item::Sfx:ChangeVolume(false,direction);break;
             case Item::Sound:ChangeContent(Content::Sound,direction);if(!ReloadSounds())return -1;break;

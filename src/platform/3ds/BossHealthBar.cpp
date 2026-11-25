@@ -83,7 +83,7 @@ void CtrBossHealthBar::Tick() {
  if(!next && opacity==0)actor=nullptr;
 }
 void CtrBossHealthBar::Draw() {
- if(!texture || opacity<=0 || !CtrSettings::Enabled(CtrSettings::Toggle::BossBar) ||
+ if(!texture || opacity<=0 || CtrSettings::BossBar()!=CtrSettings::BossBarStyle::Modern ||
     g_Gui.HasCurrentMsgIdx() || g_Gui.impl->finishedStage)return;
  auto& manager=*g_AnmManager;
  manager.SetProjectionMode(PROJECTION_MODE_ORTHOGRAPHIC);

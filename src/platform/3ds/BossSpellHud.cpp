@@ -117,7 +117,7 @@ void CtrBossSpellHud::Tick() {
 }
 bool CtrBossSpellHud::DrawTimer(int fallbackSeconds,ZunColor color) {
     infoPending=false;
-    if(!texture || !CtrSettings::Enabled(CtrSettings::Toggle::BossBar) || !CtrBossHealthBar::Available())return false;
+    if(!texture || CtrSettings::BossBar()!=CtrSettings::BossBarStyle::Modern || !CtrBossHealthBar::Available())return false;
     if(g_Gui.HasCurrentMsgIdx() || g_Gui.impl->finishedStage)return true;
     auto& manager=*g_AnmManager;
     manager.SetProjectionMode(PROJECTION_MODE_ORTHOGRAPHIC);

@@ -5,7 +5,8 @@
 namespace {
 std::atomic_int bgm{100},sfx{100};
 CtrSettings::ScreenMode mode=CtrSettings::ScreenMode::TopOnly;
-bool toggles[]={true,false,false,true,false,true,true};
+bool toggles[]={true,false,false,true,false,true};
+CtrSettings::BossBarStyle bossBar=CtrSettings::BossBarStyle::Modern;
 bool replayCollection=false,replayAlways=false;
 int replayOptions=-1;
 unsigned char content[]={1,0,0,0};
@@ -17,7 +18,7 @@ void CtrSettings::Load() {
         if(((size==10 && data[3]==1) || (size==11 && data[3]==2 && data[10]<2) ||
            (size==12 && data[3]==3 && data[10]<2 && data[11]<2) ||
            (size==13 && data[3]==4 && data[10]<2 && data[11]<2 && data[12]<2) ||
-           (((size==17 && data[3]==5) || (size==18 && data[3]==6 && data[17]<2)) && data[10]<2 && data[11]<2 && data[12]<2 &&
+           (((size==17 && data[3]==5) || (size==18 && data[3]==6 && data[17]<3)) && data[10]<2 && data[11]<2 && data[12]<2 &&
             data[13]<2 && data[14]<2 && data[15]<4 && data[16]<2)) && data[0]=='T' && data[1]=='H' &&
            data[2]=='S' && data[4]<2 && data[5]<=100 && data[6]<=100 &&
            data[5]%10==0 && data[6]%10==0 && data[7]<2 && data[8]<2 && data[9]<2) {
@@ -27,7 +28,7 @@ void CtrSettings::Load() {
             toggles[4]=size>=12?data[11]!=0:false;
             toggles[5]=size>=13?data[12]!=0:true;
             if(size>=17)for(int i=0;i<4;i++)content[i]=data[13+i];
-            if(size==18)toggles[6]=data[17]!=0;
+            if(size==18)bossBar=static_cast<BossBarStyle>(data[17]);
         }
         fclose(f);
     }
@@ -36,11 +37,19 @@ void CtrSettings::Save() {
     if(FILE* f=fopen("settings3ds.cfg","wb")) {
         const unsigned char data[]={'T','H','S',6,static_cast<unsigned char>(mode),
             static_cast<unsigned char>(bgm.load()),static_cast<unsigned char>(sfx.load()),
-            toggles[0],toggles[1],toggles[2],toggles[3],toggles[4],toggles[5],content[0],content[1],content[2],content[3],toggles[6]};
+            toggles[0],toggles[1],toggles[2],toggles[3],toggles[4],toggles[5],content[0],content[1],content[2],content[3],static_cast<unsigned char>(bossBar)};
         fwrite(data,1,sizeof(data),f);fclose(f);
     }
 }
-void CtrSettings::Reset() {mode=ScreenMode::TopOnly;bgm=100;sfx=100;toggles[0]=true;toggles[1]=toggles[2]=false;toggles[3]=true;toggles[4]=false;toggles[5]=toggles[6]=true;content[0]=1;content[1]=content[2]=content[3]=0;}
+void CtrSettings::Reset() {mode=ScreenMode::TopOnly;bgm=100;sfx=100;toggles[0]=true;toggles[1]=toggles[2]=false;toggles[3]=true;toggles[4]=false;toggles[5]=true;bossBar=BossBarStyle::Modern;content[0]=1;content[1]=content[2]=content[3]=0;}
+CtrSettings::BossBarStyle CtrSettings::BossBar() {return bossBar;}
+void CtrSettings::ChangeBossBar(int direction,bool modernAvailable) {
+    constexpr BossBarStyle choices[]={BossBarStyle::OG,BossBarStyle::Classic,BossBarStyle::Modern};
+    int index=0;
+    for(int i=0;i<3;i++)if(choices[i]==bossBar)index=i;
+    do {index=(index+direction+3)%3;}while(!modernAvailable && choices[index]==BossBarStyle::Modern);
+    bossBar=choices[index];
+}
 bool CtrSettings::English() {return replayOptions>=0?(replayOptions&2)!=0:content[0]!=0;}
 bool CtrSettings::Retexture() {return replayOptions>=0?(replayOptions&4)!=0:content[1]!=0;}
 bool CtrSettings::NewSprites() {return replayOptions>=0?(replayOptions&8)!=0:content[3]!=0;}

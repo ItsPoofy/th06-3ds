@@ -1,7 +1,10 @@
 #pragma once
 namespace CtrSettings {
 enum class ScreenMode { Split, TopOnly };
-enum class Toggle { Hitbox, Focus, Fire, QuickInfo, AutoCollect, Fps, BossBar };
+enum class Toggle { Hitbox, Focus, Fire, QuickInfo, AutoCollect, Fps };
+enum class BossBarStyle { OG=0, Modern=1, Classic=2 };
+BossBarStyle BossBar();
+void ChangeBossBar(int direction,bool modernAvailable);
 enum class Content { Language, Graphics, Sound, Sprites };
 bool English();
 bool Retexture();

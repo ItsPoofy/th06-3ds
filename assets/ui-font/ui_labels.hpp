@@ -27,6 +27,8 @@ inline constexpr Label labels[]={
 {"Top",315,191,59,37,7,27,"option"},
 {"Up",375,191,47,37,7,27,"option"},
 {"Return to Practice",1,990,222,34,7,24,"menu"},
+{"Classic",0,228,94,34,7,23,"option"},
+{"Modern",95,228,100,34,7,23,"option"},
 {"3DS Version 1.0.4",1,955,225,35,7,25,"option"},
 {"Return to Title",205,229,179,34,7,24,"menu"},
 {"Reset Defaults",1,265,176,34,7,24,"option"},

@@ -54,6 +54,7 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/DialogueReveal.cpp
     src/platform/3ds/PlayfieldText.cpp
     src/platform/3ds/BossSpellHud.cpp
+    src/platform/3ds/ClassicBossHud.cpp
     src/platform/3ds/SpellTitleDecoration.cpp
     src/platform/3ds/FocusEffect.cpp
     src/platform/3ds/StageDepth.cpp

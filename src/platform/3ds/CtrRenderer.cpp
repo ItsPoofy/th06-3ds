@@ -11,6 +11,7 @@
 #include "GameDecorations.hpp"
 #include "BossHealthBar.hpp"
 #include "BossSpellHud.hpp"
+#include "ClassicBossHud.hpp"
 #include "SpellTitleDecoration.hpp"
 #include "SelectionLayout.hpp"
 #include "PauseMenu.hpp"
@@ -100,6 +101,7 @@ CtrRenderer::~CtrRenderer() {
     if(lifecycleHooked)aptUnhook(&lifecycleHook);
     CtrBossHealthBar::Shutdown(*this);
     CtrBossSpellHud::Shutdown(*this);
+    CtrClassicBossHud::Shutdown(*this);
     CtrSpellTitleDecoration::Shutdown(*this);
     textures.clear(); retired.clear();
     CtrPresentation::Shutdown();

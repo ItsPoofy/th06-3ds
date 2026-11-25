@@ -9,6 +9,7 @@
 #include "Settings.hpp"
 #include "BossHealthBar.hpp"
 #include "BossSpellHud.hpp"
+#include "ClassicBossHud.hpp"
 #include "SpellTitleLayout.hpp"
 #include "BossSpellLayout.hpp"
 #include "SpellTitleDecoration.hpp"
@@ -19,7 +20,7 @@
 
 namespace {
 int musicFrame=450;bool musicBlocked=false;float dialoguePanel=0;
-bool ModernBossLayout() {return CtrSettings::Enabled(CtrSettings::Toggle::BossBar) && CtrBossHealthBar::Available();}
+bool ModernBossLayout() {return CtrSettings::BossBar()==CtrSettings::BossBarStyle::Modern && CtrBossHealthBar::Available();}
 }
 void CtrPlayfieldText::ResetDialoguePanel() {dialoguePanel=0;}
 void CtrPlayfieldText::TickDialoguePanel(bool visible) {
@@ -165,6 +166,12 @@ void CtrPlayfieldText::DrawMusicTitle(const AnmVm& source) {
 }
 void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background) {
     if(g_Gui.impl && g_Gui.impl->finishedStage)return;
+    const bool player=source.activeSpriteIndex==ANM_OFFSET_TEXT+6;
+    const bool classic=CtrSettings::BossBar()==CtrSettings::BossBarStyle::Classic;
+    if(classic && !player) {
+        CtrClassicBossHud::DrawSpellcard(source);
+        return;
+    }
     if(!source.sprite || source.ctrTextWidth<=0) {Draw(source);return;}
     auto vm=source;auto sprite=*source.sprite;
     const float width=std::min(source.ctrTextWidth,sprite.widthPx-source.ctrTextStart);
@@ -174,8 +181,7 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
         sprite.heightPx=source.ctrTextHeight;
         sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
     }
-    const bool player=source.activeSpriteIndex==ANM_OFFSET_TEXT+6;
-    const bool modern=ModernBossLayout();
+    const bool modern=ModernBossLayout() || (classic && player);
     const float titleLeft=CtrBossSpellLayout::TitleLeft(CtrDecorations::CurrentBossName());
     const float available=modern && !player?CtrBossSpellLayout::Right-titleLeft:Right-Left-16;
     const float fitX=std::min(base,available/(std::max(1.f,width)*std::max(1.f,source.scaleX)));
@@ -209,6 +215,10 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
     g_AnmManager->DrawNoRotation(&vm);g_AnmManager->SetCurrentSprite(nullptr);
 }
 void CtrPlayfieldText::QueueBossTimer(const ZunVec3& originalPosition,int seconds) {
+    if(CtrSettings::BossBar()==CtrSettings::BossBarStyle::Classic) {
+        CtrClassicBossHud::DrawTimer(seconds,g_AsciiManager.color);
+        return;
+    }
     if(CtrBossSpellHud::DrawTimer(seconds,g_AsciiManager.color))return;
     if(!ModernBossLayout()) {
         auto& manager=*g_AnmManager;

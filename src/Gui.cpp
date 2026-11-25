@@ -12,6 +12,7 @@
 #include "platform/3ds/GameplayLogo.hpp"
 #include "platform/3ds/BossHealthBar.hpp"
 #include "platform/3ds/BossSpellHud.hpp"
+#include "platform/3ds/ClassicBossHud.hpp"
 #include "platform/3ds/PauseMenu.hpp"
 #include "practice/Th06Run.hpp"
 #include "practice/Session.hpp"
@@ -59,6 +60,7 @@ void Gui::EndEnemySpellcard() const
 #ifdef __3DS__
     CtrDecorations::EndBossSpellcard();
     CtrBossSpellHud::End();
+    CtrClassicBossHud::EndSpell();
 #endif
     this->impl->enemySpellcardName.pendingInterrupt = 1;
     return;
@@ -339,11 +341,12 @@ void Gui::ShowSpellcard(i32 spellcardSprite, const char *spellcardName)
     g_AnmManager->SetActiveSprite(&this->impl->enemySpellcardPortrait, ANM_SPRITE_FACE_STAGE_START + spellcardSprite);
     g_AnmManager->SetAndExecuteScriptIdx(&this->impl->enemySpellcardName, ANM_SCRIPT_TEXT_ENEMY_SPELLCARD_NAME);
 #ifdef __3DS__
-    const bool modernBossBar=CtrSettings::Enabled(CtrSettings::Toggle::BossBar) && CtrBossHealthBar::Available();
+    const bool modernBossBar=CtrSettings::BossBar()==CtrSettings::BossBarStyle::Modern && CtrBossHealthBar::Available();
     TextHelper::Wrapped(&this->impl->enemySpellcardName,spellcardName,
         modernBossBar?COLOR_WHITE:0xfff0f0,COLOR_RGB(COLOR_BLACK),290,false,false,true,
         false,TextHelper::FontRole::SpellTitle);
     CtrBossSpellHud::Begin();
+    CtrClassicBossHud::BeginSpell();
 #else
     g_AnmManager->DrawStringFormat(&this->impl->enemySpellcardName, 0xfff0f0, COLOR_RGB(COLOR_BLACK), "%s", spellcardName);
 #endif
@@ -1068,6 +1071,7 @@ void Gui::UpdateStageElements()
 #ifdef __3DS__
     CtrBossHealthBar::Tick();
     CtrBossSpellHud::Tick();
+    CtrClassicBossHud::Tick();
 #endif
     i32 stageScore;
     i32 idx;
@@ -1289,7 +1293,8 @@ void Gui::DrawGameScene()
     if (this->impl->msg.currentMsgIdx < 0 && (this->bossPresent + this->impl->bossHealthBarState) > 0)
     {
 #ifdef __3DS__
-        if(!CtrSettings::Enabled(CtrSettings::Toggle::BossBar) || !CtrBossHealthBar::Available()) {
+        if(CtrSettings::BossBar()==CtrSettings::BossBarStyle::OG ||
+           (CtrSettings::BossBar()==CtrSettings::BossBarStyle::Modern && !CtrBossHealthBar::Available())) {
 #endif
         vm = &this->impl->vms[19];
         g_AnmManager->DrawNoRotation(vm);
@@ -1305,6 +1310,7 @@ void Gui::DrawGameScene()
         g_AsciiManager.AddFormatText(&phasePosition,"%d",this->eclSetLives);
 #ifdef __3DS__
         }
+        CtrClassicBossHud::DrawBar();
 #endif
         ZunVec3 textPos(384.0f, 16.0f, 0.0f);
         ZunColor bossLivesColor;
@@ -1659,6 +1665,7 @@ void Gui::DrawStageElements() const
 #ifdef __3DS__
     // The Bonus and History row goes over the spell card name's backdrop.
     CtrBossSpellHud::DrawInfo();
+    CtrClassicBossHud::DrawInfo();
 #endif
     if (this->impl->loadingScreenSprite.activeSpriteIndex >= 0)
     {

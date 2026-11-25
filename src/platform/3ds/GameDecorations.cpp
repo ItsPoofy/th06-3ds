@@ -3,6 +3,7 @@
 #include "BossPresentation.hpp"
 #include "BossHealthBar.hpp"
 #include "BossSpellHud.hpp"
+#include "ClassicBossHud.hpp"
 #include "Settings.hpp"
 #include "FocusEffect.hpp"
 #include "PortraitBlend.hpp"
@@ -92,6 +93,7 @@ void CtrDecorations::BeginStage(int nextStage) {
     CtrBossPresentation::Reset();
     CtrBossHealthBar::Reset();
     CtrBossSpellHud::Reset();
+    CtrClassicBossHud::BeginStage(*static_cast<CtrRenderer*>(g_GfxBackend));
     const bool continuing=playerCharacter==g_GameManager.character && nextStage==stage+1;
     if(continuing){playerBlend.Select(0);playerBlend.Tick();}else playerBlend.Reset();
     playerCharacter=g_GameManager.character;
