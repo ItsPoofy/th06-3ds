@@ -151,7 +151,7 @@ def main():
     sheet.alpha_composite(image, (args.x, args.y))
     sheet.save(SHEET)
     line = f'{{"{args.text}",{args.x},{args.y},{image.width},{image.height},{face_top},{face_bottom},"{args.style}"}},'
-    anchor = '{"3DS Version 1.0.4"'
+    anchor = '{"3DS Version 1.1"'
     HEADER.write_text(header.replace(anchor, line+'\n'+anchor, 1), encoding='utf-8')
     print(line)
 
