@@ -2,9 +2,9 @@
 
 A Nintendo 3DS port of **Touhou Koumakyou ~ the Embodiment of Scarlet Devil** with additional quality-of-life features, based on [GensokyoClub/th06](https://github.com/GensokyoClub/th06).
 
-Compatible with both **Old and New Nintendo 3DS and 2DS**.
+Compatible with both **Old and New Nintendo 3DS and 2DS**. Performance may still be wonky, especially on lunatic mode.
 
-You'll need the original PC game files or the Steam Classic version. The included Windows converter prepares them for the 3DS.
+You'll need the original PC game files or the Steam Classic version.
 
 ## Features
 
