@@ -25,6 +25,12 @@ See [new features and settings](docs/features.md).
   <img src="docs/screenshots/stage-4.png" width="260" alt="Stage 4 gameplay on Lunatic difficulty" />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/custom-practice.png" width="260" alt="Custom Practice setup" />
+  <img src="docs/screenshots/stage-4-lunatic.png" width="260" alt="Stage 4 gameplay on Lunatic with the bottom-screen HUD" />
+  <img src="docs/screenshots/scores.png" width="260" alt="Score records and selection menu" />
+</p>
+
 Screenshots taken in Azahar.
 
 ## Requirements
