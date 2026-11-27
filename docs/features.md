@@ -2,27 +2,15 @@
 
 ## Custom Practice
 
-**Practice Start** now has two options:
+Practice Start offers Regular Practice for full-stage runs with recorded
+scores, and Custom Practice for choosing a starting section, spell card, or
+attack phase with your own resources and score. Custom Practice is based on
+[thprac](https://github.com/touhouworldcup/thprac).
 
-- Regular Practice: the original practice mode. Play one full stage from the
-  start, with scores recorded.
-- Custom Practice: Based on thprac. Choose what to practice. You can configure everything from where to start, like during a specific stage section or spell card to your resources or scores.
-
-### Setup
-
-Press Left or Right to change a value, or press A to open a list.
-
-- Stage: what stage to play. Stages will appear once you reach it on that
-  difficulty with that shot type.
-- Start: where the run begins. See [Start points](#start-points).
-- Portion, Section, or Frame: the exact starting point. Which row appears
-  depends on Start.
-- Phase: the phase of the selected attack.
-- Options: opens the start values and run rules.
-- Start Practice: begins the run.
-
-The top screen shows the stage, start point, and section. For spell cards it
-also shows your history from normal play as captures and attempts. Note that attempts done in Custom Practice mode will not be counted towards your history.
+Stages become available as you reach them on the selected difficulty, and spell
+cards unlock when you encounter them. Undiscovered cards appear as `????????`.
+The top screen shows your normal-play captures and attempts, with Custom
+Practice attempts excluded from that history.
 
 ### Start points
 
@@ -34,100 +22,96 @@ also shows your history from normal play as captures and attempts. Note that att
 | End Boss | A boss attack. |
 | Nonspell | A nonspell attack. |
 | Spellcard | A spell card. |
-| Frame | A stage frame. Left and Right move by 60 frames (one second). |
+| Frame | A specific frame in the stage. |
 
-Spell cards you have not seen yet show as `????????` and cannot be selected.
-They unlock the first time you meet them in play.
+### Starting values
 
-### Options
+| Option | Range |
+| --- | --- |
+| Lives | 0 to 8 |
+| Bombs | 0 to 8 |
+| Power | 0 to 128 |
+| Score | 0 to 999,999,990 |
+| Graze | 0 to 99,999 |
+| Point items | 0 to 9,999 |
+| Rank | 0 to 32, or up to 99 with Rank Lock |
 
-| Option | Range | Default | Notes |
-| --- | --- | --- | --- |
-| Lives | 0 to 8 | 8 | |
-| Bombs | 0 to 8 | 8 | |
-| Power | 0 to 128 | 128 | |
-| Score | 0 to 999,999,990 | 0 | Left and Right move by 1,000,000. |
-| Graze | 0 to 99,999 | 0 | Left and Right move by 100. |
-| Point items | 0 to 9,999 | 0 | Left and Right move by 10. |
-| Rank | 0 to 32 | 32 | Up to 99 with Rank Lock on. |
-| Rank Lock | On / Off | Off | Holds rank at the chosen value. |
-| Repeat Until Stopped | On / Off | Off | Automatically restarts the section when it ends or you run out of lives. |
-| Stop After Section | On / Off | On | Ends the run when the selected section ends. |
-| Skip Dialogue | On / Off | On | Available only for sections with dialogue. |
-| Fake Shot | Selected, Reimu A, Reimu B, Marisa A, Marisa B | Selected | Stage 4 only. Plays the boss attacks for another shot type. |
+### Run options
+
+| Option | What it does |
+| --- | --- |
+| Rank Lock | Holds rank at the chosen value. |
+| Repeat Until Stopped | Restarts the section when it ends or you run out of lives. |
+| Stop After Section | Ends the run after the selected section. Turn it off to continue through the stage. |
+| Skip Dialogue | Skips dialogue during the run. |
+| Fake Shot | Uses another shot type's Patchouli attacks in Stage 4. |
 
 ## Options
 
-Options are split into five pages: Gameplay, Controls, Display, Audio, and
-Content. The new settings are:
-
 ### Gameplay
 
-| Setting | Values | Default |
-| --- | --- | --- |
-| PoC | Max Power Only, Always | Max Power Only |
+| Setting | Values |
+| --- | --- |
+| PoC | Max Power Only, Always |
 
 PoC sets when moving to the top of the playfield collects every item on
 screen. `Always` collects at any power level.
 
 ### Controls
 
-| Setting | Values | Default |
-| --- | --- | --- |
-| Toggle Fire | On, Off | Off |
-| Toggle Focus | On, Off | Off |
+| Setting | Values |
+| --- | --- |
+| Toggle Fire | On, Off |
+| Toggle Focus | On, Off |
 
-With Toggle Fire on, press Shoot once to start firing and again to stop.
-Toggle Focus works the same way for Focus.
+Toggle Fire and Toggle Focus let you press the corresponding button once to
+enable it and again to stop, so you can play without holding the button down.
 
 ### Display
 
-| Setting | Values | Default |
-| --- | --- | --- |
-| Screen Mode | Top Only, Split | Top Only |
-| Alignment | Top, Middle, Bottom | Bottom |
-| Focus Hitbox | On, Off | On |
-| Quick Info | On, Off | On |
-| Boss Bar | OG, Classic, Modern | Modern |
-| FPS Counter | On, Off | On |
+| Setting | Values |
+| --- | --- |
+| Screen Mode | Top Only, Split |
+| Alignment | Top, Middle, Bottom |
+| Focus Hitbox | On, Off |
+| Quick Info | On, Off |
+| Boss Bar | OG, Classic, Modern |
+| FPS Counter | On, Off |
 
-- Screen Mode: `Top Only` draws the playfield on the top screen. `Split`
-  stretches it across both screens.
-- Alignment: the playfield position in Split mode. It has no effect in Top
-  Only mode.
-- Focus Hitbox: shows your hitbox while you focus.
-- Quick Info: shows your lives and bombs beside the character name on the
-  sidebar.
-- Boss Bar:`OG` is the original straight bar, `Modern` is a circular bar
-  around the boss, and `Classic` is the original-style boss HUD with the
-  modern spell card decorations.
-- FPS Counter: shows the frame rate.
+Screen Mode keeps the playfield on the top screen or stretches it across both
+screens, with Alignment controlling its position in Split mode. Focus Hitbox
+shows your hitbox while focusing, and Quick Info puts your lives and bombs
+beside the character name on the sidebar.
+
+Boss Bar offers the original TH06 layout (`OG`), a Touhou 7-style horizontal
+bar with modern spell card decorations (`Classic`), or a circular health bar
+around the boss (`Modern`).
 
 ### Audio
 
-| Setting | Values | Default |
-| --- | --- | --- |
-| Sound Set | Original, PCB, IN, SA | Original |
+| Setting | Values |
+| --- | --- |
+| Sound Set | Original, PCB, IN, SA |
 
 Sound Set replaces the sound effects with the sets from Perfect Cherry
 Blossom, Imperishable Night, or Subterranean Animism.
 
 ### Content
 
-| Setting | Values | Default |
-| --- | --- | --- |
-| Graphic | OG, Retexture | OG |
-| Player Sprites | Old, New | Old |
+| Setting | Values |
+| --- | --- |
+| Language | English, Japanese |
+| Graphic | OG, Retexture |
+| Player Sprites | Old, New |
 
-- Language: changes menus, dialogue, and endings.
-- Graphic: `Retexture` uses the EoSD Retexture Pack v0.3.
-- Player Sprites: picks the Old or New Reimu and Marisa sprites.
+Language changes menus, dialogue, and endings, while Graphic lets you switch
+between the original artwork and EoSD Retexture Pack v0.3. Player Sprites
+selects the Old or New Reimu and Marisa sprites.
 
 Replays play back with the Language, Graphic, and Player Sprites settings they
 were recorded with.
 
 ## Music Room
 
-Tap the controls on the bottom screen to play or pause, skip to the previous or
-next track, or seek within the track. Seeking also works while the track is
-paused. Press Left or Right to page through a track's description.
+The bottom screen has track descriptions and playback controls for pausing,
+switching tracks, and seeking, including while a track is paused.
