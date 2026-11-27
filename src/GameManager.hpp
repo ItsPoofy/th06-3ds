@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include "Chain.hpp"
 #include "ResultScreen.hpp"
 #include "ZunResult.hpp"

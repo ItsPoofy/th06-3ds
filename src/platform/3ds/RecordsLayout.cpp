@@ -28,12 +28,25 @@ bool isUTF8Encoded(const char* string);
 namespace {
 const int CardCount=std::size(g_GameManager.catk);
 
+constexpr float ListTop=118,ListSpacing=30,ListScale=1.2f,RowHeight=24;
+constexpr float BoxLeft=24,BoxRight=616,BoxMargin=10;
+constexpr float CountsRight=BoxRight-16,CountsWidth=96;
+constexpr float NameX=40,NameWidth=CountsRight-CountsWidth-12-NameX;
 constexpr int FontSize=15;
 constexpr float TextRowWidth=240;
-constexpr int RowSlots=5,DetailSlot=14;
+
+constexpr int RowSlots=13,DigitSlot=13,DetailSlot=14;
 int prepared[RowSlots];
+float baselines[RowSlots];
+float referenceBaseline=-1;
 int preparedDetail=-1;
 int offset=0;
+
+constexpr char Digits[]="0 1 2 3 4 5 6 7 8 9 /";
+constexpr int DigitCount=11;
+struct Glyph {float start=0,width=0;};
+Glyph digits[DigitCount];
+bool digitsReady=false;
 
 const char* Name(int index) {
     const auto& card=g_GameManager.catk[index];
@@ -45,18 +58,48 @@ unsigned Color(int index) {
     return !Practice::Th06::SpellKnown(index)?0x80c0c0ffu:card.numSuccess==0?0xffc0a0a0u:0xfff0f0ffu;
 }
 
+std::string RowText(int index) {
+    const char* name=Name(index);
+    char* converted=isUTF8Encoded(name)?nullptr:sjis2utf8(name);
+    std::string translated=CtrContent::Translate(converted?converted:name);
+    std::free(converted);
+    char number[16];
+    std::snprintf(number,sizeof(number),"No.%.2d  ",index+1);
+    return number+translated;
+}
+
 int FitSize(const char* text) {
     int size=FontSize;
     while(size>8 && TextHelper::Measure(text,size)>TextRowWidth)size--;
     return size;
 }
 
+float FirstGlyphBottom(const AnmVm& vm) {
+    const auto& texture=g_AnmManager->textures[vm.sprite->sourceFileIndex];
+    if(!texture.textureData)return -1;
+    const int row=vm.sprite->startPixelInclusive.y;
+    const int bottom=std::min<int>(row+int(vm.ctrTextHeight),texture.height);
+    int last=-1;bool started=false;
+    for(unsigned x=unsigned(vm.ctrTextStart);x<texture.width;x++) {
+        bool ink=false;
+        for(int y=row;y<bottom;y++) {
+            const u8* pixel=&texture.textureData[(y*texture.width+x)*4];
+            if(pixel[3]>128 && pixel[0]>128) {ink=true;last=std::max(last,y);}
+        }
+        if(ink)started=true;else if(started)break;
+    }
+    return last<0?-1:float(last+1-row);
+}
+
 void Prepare(ResultScreen& screen,int index) {
     const int slot=index%RowSlots;
     if(prepared[slot]==index)return;
     auto& vm=screen.unk_28a0[slot];
-    vm.fontWidth=vm.fontHeight=FontSize;
-    TextHelper::Wrapped(&vm,Name(index),COLOR_RGB(COLOR_WHITE),COLOR_RGB(COLOR_BLACK),286);
+    const std::string row=RowText(index);
+    vm.fontWidth=vm.fontHeight=FitSize(row.c_str());
+    TextHelper::Wrapped(&vm,row.c_str(),COLOR_RGB(COLOR_WHITE),COLOR_RGB(COLOR_BLACK),256,true);
+    baselines[slot]=FirstGlyphBottom(vm);
+    if(vm.fontHeight==FontSize && baselines[slot]>=0)referenceBaseline=baselines[slot];
     prepared[slot]=index;
 }
 
@@ -72,7 +115,6 @@ void DrawPart(AnmVm vm,float start,float width,float x,float y,float scaleX,floa
     vm.scaleX=scaleX;vm.scaleY=scaleY;
     vm.posOffset=ZunVec3(0,0,0);vm.pos=ZunVec3(x,y,0);vm.color=color;
     g_AnmManager->DrawNoRotation(&vm);
-    // AnmManager caches UVs by sprite address, and this copy lives on the stack.
     g_AnmManager->SetCurrentSprite(nullptr);
 }
 
@@ -82,6 +124,45 @@ float TextWidthScale(const AnmVm& vm,float scale,float maxWidth) {
 }
 void DrawText(const AnmVm& vm,float x,float y,float scale,float maxWidth,unsigned color) {
     DrawPart(vm,vm.ctrTextStart,vm.ctrTextWidth,x,y,TextWidthScale(vm,scale,maxWidth),TextHeightScale(vm,scale),color);
+}
+
+void PrepareDigits(ResultScreen& screen) {
+    if(digitsReady)return;
+    auto& vm=screen.unk_28a0[DigitSlot];
+    vm.fontWidth=vm.fontHeight=FontSize;
+    TextHelper::Wrapped(&vm,Digits,COLOR_RGB(COLOR_WHITE),COLOR_RGB(COLOR_BLACK),256,true);
+    const auto& texture=g_AnmManager->textures[vm.sprite->sourceFileIndex];
+    if(!texture.textureData)return;
+    const int row=vm.sprite->startPixelInclusive.y;
+    const int bottom=std::min<int>(row+int(vm.ctrTextHeight),texture.height);
+    int count=0;bool inside=false;
+    for(unsigned x=0;x<texture.width && count<=DigitCount;x++) {
+        bool ink=false;
+        for(int y=row;y<bottom && !ink;y++)ink=texture.textureData[(y*texture.width+x)*4+3]!=0;
+        if(ink && !inside) {if(count<DigitCount)digits[count].start=x;inside=true;}
+        if(!ink && inside) {if(count<DigitCount)digits[count].width=x-digits[count].start;count++;inside=false;}
+    }
+    digitsReady=count==DigitCount;
+}
+
+void DrawCounts(ResultScreen& screen,int index,float right,float y,unsigned color) {
+    if(!digitsReady)return;
+    const auto& card=g_GameManager.catk[index];
+    char text[16];
+    std::snprintf(text,sizeof(text),"%d/%d",card.numSuccess,card.numAttempts);
+    const float gap=digits[0].width*.1f;
+    float width=0;
+    for(const char* c=text;*c;c++) {
+        const auto& glyph=digits[*c=='/'?10:*c-'0'];
+        width+=(glyph.width+gap)*ListScale;
+    }
+    float x=right-width;
+    const auto& vm=screen.unk_28a0[DigitSlot];
+    for(const char* c=text;*c;c++) {
+        const auto& glyph=digits[*c=='/'?10:*c-'0'];
+        DrawPart(vm,glyph.start,glyph.width,x,y,ListScale,ListScale,color);
+        x+=(glyph.width+gap)*ListScale;
+    }
 }
 
 void Ascii(const char* text,float x,float y,float scale,unsigned color) {
@@ -112,7 +193,7 @@ constexpr float StatsTop=240,StatsSpacing=36,StatsScale=1.25f;
 }
 
 void CtrRecords::OpenList(ResultScreen& screen) {
-    std::fill(std::begin(prepared),std::end(prepared),-1);preparedDetail=-1;
+    std::fill(std::begin(prepared),std::end(prepared),-1);preparedDetail=-1;digitsReady=false;referenceBaseline=-1;
     screen.cursor=std::clamp(int(screen.cursor),0,CardCount-1);
     offset=std::clamp(offset,std::max(0,int(screen.cursor)-VisibleRows+1),std::min(int(screen.cursor),CardCount-VisibleRows));
 }
@@ -128,25 +209,24 @@ bool CtrRecords::Input(ResultScreen& screen) {
 static unsigned Faded(unsigned color,float opacity) {return (unsigned((color>>24)*opacity)<<24)|(color&0xffffff);}
 
 void CtrRecords::DrawList(ResultScreen& screen,CtrRecordsPanel::View view) {
-    constexpr float scale=1.2f;
+    const int end=std::min(CardCount,offset+VisibleRows);
+    const float slide=view.slide;
+    CtrPresentation::ShowListBox(BoxLeft+slide,ListTop-BoxMargin,BoxRight+slide,ListTop+(VisibleRows-1)*ListSpacing+RowHeight+BoxMargin,
+                                 offset>0,end<CardCount,view.opacity);
     const auto savedScale=g_AsciiManager.scale;const auto savedColor=g_AsciiManager.color;
-    auto heading=screen.unk_40[13];
-    heading.pos=ZunVec3(48+view.slide,64,0);
-    heading.color=Faded(heading.color|0xff000000u,view.opacity);
-    g_AnmManager->DrawNoRotation(&heading);
-    g_AsciiManager.scale=ZunVec2(scale,scale);
-    const int first=screen.cursor/VisibleRows*VisibleRows;
-    for(int row=0;row<VisibleRows && first+row<CardCount;row++) {
-        const int index=first+row;
+    PrepareDigits(screen);
+    for(int index=offset;index<end;index++) {
         Prepare(screen,index);
-        const auto color=Faded(Color(index),view.opacity);
-        ZunVec3 position(12+view.slide,144+60*row,0);
-        g_AsciiManager.color=color;
-        g_AsciiManager.AddFormatText(&position,"No.%.2d",index+1);
-        const auto& vm=screen.unk_28a0[index%RowSlots];
-        DrawPart(vm,vm.ctrTextStart,vm.ctrTextWidth,position.x+90,position.y,scale,scale,color);
-        position.x+=464;
-        g_AsciiManager.AddFormatText(&position,"%3d/%3d",g_GameManager.catk[index].numSuccess,g_GameManager.catk[index].numAttempts);
+        unsigned color=Color(index);
+        color=index==screen.cursor?color|0xff000000u:(color&0xffffff)|((color>>24)*9/16<<24);
+        color=Faded(color,view.opacity);
+        const float y=ListTop+(index-offset)*ListSpacing;
+        const int slot=index%RowSlots;
+        const auto& vm=screen.unk_28a0[slot];
+        const float shift=referenceBaseline>=0 && baselines[slot]>=0?
+            referenceBaseline*ListScale-baselines[slot]*TextHeightScale(vm,ListScale):0;
+        DrawText(vm,NameX+slide,y+shift,ListScale,NameWidth,color);
+        DrawCounts(screen,index,CountsRight+slide,y,color);
     }
     g_AsciiManager.scale=savedScale;g_AsciiManager.color=savedColor;
 }

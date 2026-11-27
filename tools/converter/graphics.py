@@ -1,5 +1,6 @@
 """Build native overlays from user-supplied game art and port UI resources."""
 import json
+import shutil
 from pathlib import Path
 import struct
 import numpy as np
@@ -59,7 +60,7 @@ def selection_atlas(root, resources, lang):
     mapping = {'name-bar': 22, 'player-name-bar': 21, 'hud-high': 9,
                'hud-score': 8, 'hud-player': 10, 'hud-bomb': 11,
                'hud-power': 15, 'hud-graze': 16, 'hud-points': 20,
-               'hud-life-star': 17, 'hud-bomb-star': 18, 'hud-max': 19}
+               'hud-life-star': 17, 'hud-bomb-star': 18}
     for name, index in mapping.items():
         original[name] = sprite(root, 'front.anm', index)
     for i in range(10):
@@ -85,6 +86,10 @@ def prepare(root, resources):
         path.mkdir(parents=True, exist_ok=True)
         write_texture(path/'selection-atlas.bin', selection_atlas(root, resources, lang))
         write_texture(path/'records-atlas.bin', Image.open(resources/f'records-{lang}.png').convert('RGBA'))
+        write_texture(path/'record-headings.bin', Image.open(resources/f'record-headings-{lang}.png').convert('RGBA'))
+    shutil.copy2(resources/'replay-name.ttf', ui/'replay-name.ttf')
+    for name in ('replay-reimu', 'replay-marisa'):
+        write_texture(ui/(name+'.bin'), Image.open(resources/(name+'.png')).convert('RGBA'))
     for source in (resources/'backgrounds').glob('*.png'):
         image = Image.open(source).convert('RGBA')
         write_texture(ui/(source.stem+'.bin'), image)

@@ -8,6 +8,8 @@
 #include <cmath>
 
 namespace {
+// TH20 front.anm 374-377: 38 segments, radius 112, width 8, borders 108/116.
+// Halve lengths for EoSD. Keep the 10-frame entrance and 20-frame exit.
 constexpr int Segments=38;
 constexpr float Tau=6.28318530718f;
 ZunVec2 unit[Segments+1];
@@ -95,6 +97,7 @@ void CtrBossHealthBar::Draw() {
  manager.SetDepthFunc(DEPTH_FUNC_ALWAYS);
  manager.SetColorOp(COMPONENT_RGB,COLOR_OP_MODULATE);
  manager.SetColorOp(COMPONENT_ALPHA,COLOR_OP_MODULATE);
+ // Darken translucent ring edges so they remain visible over white bullets.
  state.color&=0xff000000;
  manager.SetRenderStateForVm(&state);
  Arc(56,4,health,3.5f,6.5f);

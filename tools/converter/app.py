@@ -58,7 +58,7 @@ def main():
             else:
                 progress.stop()
                 if kind == 'done':
-                    status.set(f'Assets ready: {output}\n\nRetexture graphics, sound sets, and TH20 sprites are included.\nCopy assets to sd:/3ds/th06/assets/.')
+                    status.set('Assets ready.\n\nCopy assets to sd:/3ds/th06/assets/.')
                     ready()
                 else:
                     status.set(text)

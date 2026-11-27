@@ -26,15 +26,19 @@ void RowPart(C3D_Tex& scene,int sourceY,int sourceX,int width,float x,float y,fl
 void Row(C3D_Tex& scene,int sourceY,float x,float y,float scale=.70f) {
     RowPart(scene,sourceY,432,192,x,y,scale);
 }
-void Number(unsigned value,float x,float y,bool score=false) {
+void Number(unsigned value,float x,float y,bool score=false,float scale=1) {
     char text[16];snprintf(text,sizeof(text),score?"%09u":"%u",value);
-    for(const char* digit=text;*digit;digit++,x+=14) {
-        CtrSelectionArt::DrawDigit(*digit-'0',x,y);
+    for(const char* digit=text;*digit;digit++,x+=14*scale) {
+        CtrSelectionArt::DrawDigit(*digit-'0',x,y,scale);
     }
 }
 void Stat(const char* label,unsigned value,float x,float y,bool score=false) {
     CtrSelectionArt::Draw(label,x,y);
     Number(value,x,y+20,score);
+}
+void CompactRank(float x,float y) {
+    CtrSelectionArt::Draw("hud-rank",x,y,0xffffffff,false,.5f);
+    Number(g_GameManager.rank,x+30,y,false,.5f);
 }
 void Stars(const char* label,const char* star,int count,float x,float y) {
     CtrSelectionArt::Draw(label,x,y);
@@ -70,6 +74,7 @@ void CtrHud::SetFps(const char* text) {std::snprintf(fpsText,sizeof(fpsText),"%s
 bool CtrHud::Initialize() {return CtrGameplayLogo::Initialize();}
 void CtrHud::Shutdown() {CtrGameplayLogo::Shutdown();}
 void CtrHud::Draw(C3D_Tex& scene,C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
+    const bool showRank=CtrSettings::Enabled(CtrSettings::Toggle::Rank);
     if(CtrLayout::Single()) {
         C2D_SceneBegin(bottom);
         // Keep the decorative EoSD mark large, centered and translucent, then
@@ -85,6 +90,7 @@ void CtrHud::Draw(C3D_Tex& scene,C3D_RenderTarget* top,C3D_RenderTarget* bottom)
         if(power==128)CtrSelectionArt::Draw("hud-max",8,140);else Number(power,8,140);
         Stat("hud-graze",g_GameManager.grazeInStage,174,120);
         Stat("hud-points",g_GameManager.pointItemsCollectedInStage,8,176);
+        if(showRank)Stat("hud-rank",g_GameManager.rank,174,176);
         Fps(316,226);return;
     }
     if(CtrDisplay::GetAlignment()==CtrDisplay::Alignment::Middle) {
@@ -93,7 +99,8 @@ void CtrHud::Draw(C3D_Tex& scene,C3D_RenderTarget* top,C3D_RenderTarget* bottom)
         Fps(396,32);
         C2D_SceneBegin(bottom);
         Row(scene,118,10,188);Row(scene,142,10,204);
-        Row(scene,182,172,188);Row(scene,202,172,204);Row(scene,222,172,220);
+        Row(scene,182,172,188);Row(scene,202,172,showRank?202:204);Row(scene,222,172,showRank?216:220);
+        if(showRank)CompactRank(172,232);
     } else {
         const bool atTop=CtrDisplay::GetAlignment()==CtrDisplay::Alignment::Top;
         C2D_SceneBegin(atTop?bottom:top);
@@ -102,6 +109,7 @@ void CtrHud::Draw(C3D_Tex& scene,C3D_RenderTarget* top,C3D_RenderTarget* bottom)
         Row(scene,118,left,base+20);Row(scene,142,left,base+50);
         Row(scene,54,right,base);Row(scene,78,right,base+18);
         Row(scene,182,right,base+36);Row(scene,202,right,base+54);Row(scene,222,right,base+72);
+        if(showRank)CompactRank(right,atTop?232:98);
         Fps(atTop?316.f:396.f,atTop?226.f:96.f);
     }
     Indicators(bottom);

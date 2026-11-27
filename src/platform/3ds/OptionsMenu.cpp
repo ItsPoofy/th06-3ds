@@ -17,14 +17,14 @@
 #include "utils.hpp"
 namespace {
 int page=-1;bool reloadArtwork=false;
-enum class Item {Lives,Bombs,Collect,Fire,Focus,Keys,Screen,Alignment,Hitbox,QuickInfo,Fps,BossBar,Bgm,Sfx,Sound,Language,Graphics,Sprites,Reset,Back};
+enum class Item {Lives,Bombs,Collect,Fire,Focus,Keys,Screen,Alignment,Hitbox,QuickInfo,Fps,Rank,BossBar,Bgm,Sfx,Sound,Language,Graphics,Sprites,Reset,Back};
 constexpr Item gameplay[]={Item::Lives,Item::Bombs,Item::Collect,Item::Back};
 constexpr Item controls[]={Item::Fire,Item::Focus,Item::Keys,Item::Back};
-constexpr Item display[]={Item::Screen,Item::Alignment,Item::Hitbox,Item::QuickInfo,Item::BossBar,Item::Fps,Item::Back};
+constexpr Item display[]={Item::Screen,Item::Alignment,Item::Hitbox,Item::QuickInfo,Item::BossBar,Item::Fps,Item::Rank,Item::Back};
 constexpr Item audio[]={Item::Bgm,Item::Sfx,Item::Sound,Item::Back};
 constexpr Item content[]={Item::Language,Item::Graphics,Item::Sprites,Item::Reset,Item::Back};
 struct Page {const char* heading;const Item* items;int count;};
-constexpr Page pages[]={{"Gameplay",gameplay,4},{"Controls",controls,4},{"Display",display,7},{"Audio",audio,4},{"Content",content,5}};
+constexpr Page pages[]={{"Gameplay",gameplay,4},{"Controls",controls,4},{"Display",display,8},{"Audio",audio,4},{"Content",content,5}};
 Item At(int row) {return pages[page].items[row];}
 bool ReloadSounds() {
  if(g_SoundPlayer.audioDev) {
@@ -43,7 +43,7 @@ int CtrOptions::RowCount() {return page<0?PageCount()+1:pages[page].count;}
 const char* CtrOptions::Heading(int index) {return index<0?"Options":pages[index].heading;}
 const char* CtrOptions::Label(int row) {
  if(page<0)return row<PageCount()?Heading(row):"Back";
- static const char* labels[]={"Player","Bomb","PoC","Toggle Fire","Toggle Focus","Key Config","Screen Mode","Alignment","Focus Hitbox","Quick Info","FPS Counter","Boss Bar","BGM","SFX","Sound Set","Language","Graphic","Player Sprites","Reset Defaults","Back"};
+ static const char* labels[]={"Player","Bomb","PoC","Toggle Fire","Toggle Focus","Key Config","Screen Mode","Alignment","Focus Hitbox","Quick Info","FPS Counter","Rank Display","Boss Bar","BGM","SFX","Sound Set","Language","Graphic","Player Sprites","Reset Defaults","Back"};
  return labels[static_cast<int>(At(row))];
 }
 std::string CtrOptions::Value(int row) {
@@ -60,6 +60,7 @@ std::string CtrOptions::Value(int row) {
   case Item::Hitbox:return Enabled(Toggle::Hitbox)?"On":"Off";
   case Item::QuickInfo:return Enabled(Toggle::QuickInfo)?"On":"Off";
   case Item::Fps:return Enabled(Toggle::Fps)?"On":"Off";
+  case Item::Rank:return Enabled(Toggle::Rank)?"On":"Off";
   case Item::BossBar:
    if(BossBar()==BossBarStyle::Classic)return "Classic";
    return BossBar()==BossBarStyle::Modern && CtrBossHealthBar::Available()?"Modern":"OG";
@@ -105,6 +106,7 @@ int CtrOptions::Update(MainMenu& menu) {
             case Item::Hitbox:ChangeToggle(Toggle::Hitbox);break;
             case Item::QuickInfo:ChangeToggle(Toggle::QuickInfo);break;
             case Item::Fps:ChangeToggle(Toggle::Fps);break;
+            case Item::Rank:ChangeToggle(Toggle::Rank);break;
             case Item::BossBar:ChangeBossBar(direction,CtrBossHealthBar::Available());break;
             case Item::Bgm:ChangeVolume(true,direction);break;
             case Item::Sfx:ChangeVolume(false,direction);break;

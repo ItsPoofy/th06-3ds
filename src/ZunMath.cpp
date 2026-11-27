@@ -1,6 +1,5 @@
 
 
-
 #include "ZunMath.hpp"
 #include "GameWindow.hpp"
 #ifdef __3DS__
@@ -15,6 +14,7 @@ void ZunViewport::Set() const
     const bool changed=oldViewport[0]!=this->x ||
         oldViewport[1]!=GAME_WINDOW_HEIGHT-(this->y+this->height) ||
         oldViewport[2]!=this->width || oldViewport[3]!=this->height;
+    // Flush queued sprites before changing their viewport.
     if(changed && g_AnmManager)g_AnmManager->FlushVertexBuffer();
 #endif
     g_GfxBackend->SetViewport(this->x * WIDTH_RESOLUTION_SCALE + VIEWPORT_OFF_X,
@@ -43,6 +43,7 @@ void ZunViewport::Get()
     this->y = GAME_WINDOW_HEIGHT - (this->y + this->height);
 }
 
+// Map screen-space RHW coordinates to OpenGL clip space.
 
 ZunMatrix inverseViewportMatrix()
 {
@@ -53,7 +54,9 @@ ZunMatrix inverseViewportMatrix()
 
     inverseMatrix.Identity();
 
+    // Map X/Y to [-1,1], inverting Y. Map depth to [-1,1] with viewport depth [0,1].
 
+    // Round sprite positions to whole pixels to align with OpenGL pixel boundaries.
 
     inverseMatrix.Translate(-1.0f, 1.0f, -1.0f);
     inverseMatrix.Scale(1.0f / (viewport.width / 2.0f), -1.0f / (viewport.height / 2.0f), 2.0f);

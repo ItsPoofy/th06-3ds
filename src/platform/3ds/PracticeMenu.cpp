@@ -37,6 +37,7 @@ int SelectableRow(const std::vector<Row>& rows,int start,int direction=1) {
 
 constexpr float RowsTop=38,HeadingY=6,TextHeight=18,ValueRight=300,LabelLeft=26,RowSpacing=23,DividerY=31;
 constexpr int VisibleRows=8;
+// Japanese Fake Shot names follow thprac.
 constexpr const char* Routes[]={"Selected","Reimu A","Reimu B","Marisa A","Marisa B"};
 constexpr const char* RoutesJa[]={"選択中","霊符","夢符","魔符","恋符"};
 constexpr float CardStep=49,CardTop=120-CardStep;
@@ -315,6 +316,7 @@ void CtrPracticeMenu::OpenSetup(MainMenu& menu,bool atStart) {
     pageStartTimer=0;
     const auto rows=SetupRows();
     menu.cursor=SelectableRow(rows,atStart?int(rows.size())-1:0);
+    // Use a positive panel key so the first page slides in.
     transition.Reset();transition.key=1000;transition.current={};transition.previous={};
 }
 int CtrPracticeMenu::ChooseMode(MainMenu& menu) {

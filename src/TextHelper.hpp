@@ -18,7 +18,8 @@
 // };
 struct TextHelper
 {
-    enum class FontRole { Standard, SpellTitle, MusicTitle };
+    enum class FontRole { Standard, SpellTitle, MusicTitle, Dialogue };
+    static void DialogueLine(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow);
     static ZunResult CreateTextBuffer();
     static void ReleaseTextBuffer();
     static void StageCaption(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow);

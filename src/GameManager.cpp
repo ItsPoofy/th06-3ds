@@ -7,6 +7,7 @@
 #include "platform/3ds/Runtime.hpp"
 #include "practice/Completion.hpp"
 #include "practice/RunTransition.hpp"
+#include "platform/3ds/ReplayFlow.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/PauseMenu.hpp"
 #include "platform/3ds/StageScores.hpp"
@@ -27,7 +28,6 @@
 #include "Stage.hpp"
 #include "Supervisor.hpp"
 #include "utils.hpp"
-
 
 static const u32 g_ExtraLivesScores[5] = {10000000, 20000000, 40000000, 60000000, 1900000000};
 
@@ -174,7 +174,6 @@ ChainCallbackResult GameManager::OnUpdate(GameManager *gameManager)
     g_GfxBackend->Clear(CLEAR_DEPTH_BUFFER);
 #endif
 
-
     if (gameManager->isInGameMenu == 1 || gameManager->isInGameMenu == 2 || gameManager->isInRetryMenu)
     {
         return CHAIN_CALLBACK_RESULT_BREAK;
@@ -228,7 +227,11 @@ ChainCallbackResult GameManager::OnUpdate(GameManager *gameManager)
             gameManager->extraLives++;
             g_GameManager.IncreaseSubrank(200);
         }
-        if (gameManager->highScore < gameManager->guiScore)
+        if (gameManager->highScore < gameManager->guiScore
+#ifdef __3DS__
+            && Practice::Current().SavesPoints()
+#endif
+        )
         {
             gameManager->highScore = gameManager->guiScore;
         }
@@ -243,6 +246,7 @@ ChainCallbackResult GameManager::OnDraw(GameManager *gameManager)
     CtrPresentation::MarkScene();
 #endif
 
+    // Restore the stage camera before every draw, including draws without an update.
     SetupStageViewport(*gameManager);
     if (gameManager->isInGameMenu)
     {
@@ -495,6 +499,8 @@ ZunResult GameManager::AddedCallback(GameManager *mgr)
         g_Supervisor.curState=SUPERVISOR_STATE_MAINMENU;
     } else if(Practice::Current().Custom() && Practice::Current().running) {
         Practice::RunTransition::BeginEntry();
+    } else if(mgr->isInReplay && !mgr->demoMode && !failedToLoadReplay) {
+        CtrReplayFlow::Entered();
     } else if(!mgr->isInReplay && !mgr->demoMode && !Practice::Current().Custom() &&
               !Practice::Th06Progress::VisitStage(mgr->difficulty,mgr->currentStage)) {
         CtrRuntime::Log("Unable to save practice stage visit");

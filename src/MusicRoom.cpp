@@ -32,6 +32,7 @@ constexpr float ListScale=1.4f;
 constexpr float ListTop=118,ListSpacing=30;
 constexpr float ListTitleX=CtrMenuCanvas::ContentInset+98;
 constexpr float ListBoxLeft=CtrMenuCanvas::ContentInset+40,ListBoxRight=CtrMenuCanvas::Width-ListBoxLeft,ListBoxMargin=8,ListRowHeight=21;
+// Description coordinates use the 640x480 lower-screen layer.
 constexpr float DescriptionScale=ListScale;
 constexpr float DescriptionLeft=24,DescriptionTop=36,DescriptionSpacing=34;
 constexpr float DescriptionRowWidth=(640-2*DescriptionLeft)/DescriptionScale;
@@ -561,6 +562,7 @@ void MusicRoom::DisplayDescription() {
     int lines=0;
     for(int row=0;row<32;row++)if(track.description[row][0])lines=row+1;
 #ifdef __3DS__
+    // Each wrapped row uses two consecutive text sprites.
     const auto& first=this->descriptionSprites[0];
     const int fontHeight=this->titleSprites[0].fontWidth<=0?15:this->titleSprites[0].fontWidth;
     CtrMusicDescription::Row rows[MaxDescriptionRows];

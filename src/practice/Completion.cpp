@@ -14,11 +14,11 @@ float Smooth(float value) {
 }
 }
 void Practice::Completion::Reset(){active=false;frame=-1;duration=0;chosen=Action::None;}
-void Practice::Completion::Begin(bool repeat,Outcome outcome) {
+void Practice::Completion::Begin(bool repeat) {
     if(active)return;
-    Reset();active=true;automatic=repeat?Action::Retry:Action::ReturnPractice;
+    if(repeat){BeginExit(Action::Retry);return;}
+    Reset();active=true;automatic=Action::ReturnPractice;
     duration=CountdownSeconds*FramesPerSecond;
-    if(repeat)duration=outcome==Outcome::SpellCleared?SpellRepeatSeconds*FramesPerSecond:0;
 }
 void Practice::Completion::BeginExit(Action action) {
     Reset();active=true;frame=0;automatic=chosen=action;

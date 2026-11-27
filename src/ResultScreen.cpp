@@ -4,6 +4,7 @@
 #include "platform/3ds/ExtraRecordsCode.hpp"
 #include "platform/3ds/RecordsLayout.hpp"
 #include "platform/3ds/RecordsPanel.hpp"
+#include "platform/3ds/ReplayPanel.hpp"
 #include "platform/3ds/MenuTiming.hpp"
 #include "platform/3ds/Presentation.hpp"
 #include "platform/3ds/Touch.hpp"
@@ -38,6 +39,7 @@ static const f32 g_DifficultyWeightsList[5] = {-30.0f, -10.0f, 20.0f, 30.0f, 30.
 
 static const u32 g_DefaultMagic = 'DMYS';
 
+// Keep the name-entry alphabet in single-byte SJIS.
 static const char *const g_AlphabetList =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ.,:;\xA5@abcdefghijklmnopqrstuvwxyz+-/*=%0123456789(){}[]<>#!?'\"$      --";
 
@@ -71,6 +73,7 @@ void SetInterrupt(ResultScreen *resultScreen, i32 interrupt)
     }
 }
 
+// Extra uses its own result state for clear-data handling.
 void ShowBoard(ResultScreen *resultScreen)
 {
     resultScreen->diffSelected = Current().difficulty;
@@ -104,6 +107,7 @@ f32 ContentOpacity(const ResultScreen *resultScreen)
     return opacity;
 }
 
+// Slide the board left of the spell list while keeping the title fixed.
 constexpr f32 SlideDistance = 640;
 f32 SpellShare(const ResultScreen *resultScreen)
 {
@@ -259,22 +263,14 @@ void BoardInput(ResultScreen *resultScreen)
 
 void DrawBoardCaptions(View view)
 {
-    static const char *const captions[] = {"DIFFICULTY", "CHARACTER", "SHOT TYPE"};
     const auto savedScale = g_AsciiManager.scale;
     const auto savedColor = g_AsciiManager.color;
     const auto savedGui = g_AsciiManager.isGui;
     const auto savedLower = g_AsciiManager.lowerScreen;
     g_AsciiManager.isGui = false;
     g_AsciiManager.lowerScreen = true;
-    g_AsciiManager.scale = ZunVec2(CaptionScale, CaptionScale);
     const i32 focus = Current().focus;
     const f32 slide = view.LowerSlide();
-    for (i32 row = 0; row < 3; row++)
-    {
-        g_AsciiManager.color = Faded(row == focus ? 0xffffe0a0 : 0xff968282, view.opacity);
-        ZunVec3 position(Left + slide, SectionTop(row), 0.0f);
-        g_AsciiManager.AddString(&position, captions[row]);
-    }
     const char arrow[] = {TEXT_RIGHT_ARROW, '\0'};
     g_AsciiManager.scale = ZunVec2(1.25f, 1.25f);
     g_AsciiManager.color = Faded(COLOR_WHITE, view.opacity);
@@ -295,7 +291,7 @@ void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 charac
     const f32 slide = view.slide;
     position = ZunVec3(NameX + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "NAME");
-    position = ZunVec3(ScoreX + 76.0f + slide, TableTop - 26.0f, 0.0f);
+    position = ZunVec3(ScoreX + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "SCORE");
     position = ZunVec3(StageX - 8.0f + slide, TableTop - 26.0f, 0.0f);
     g_AsciiManager.AddString(&position, "ST");
@@ -319,7 +315,7 @@ void DrawBoardTable(const ResultScreen *resultScreen, i32 difficulty, i32 charac
             g_AsciiManager.AddString(&position, cursor);
         }
         position.x = ScoreX + slide;
-        g_AsciiManager.AddFormatText(&position, "%9d", node->data->score);
+        g_AsciiManager.AddFormatText(&position, "%d", node->data->score);
         position.x = StageX + slide;
         if (node->data->stage <= 6)
         {
@@ -656,6 +652,9 @@ void ResultScreen::ReleaseScoreDat(ScoreDat *scoreDat)
 
 void ResultScreen::WriteScore(ResultScreen *resultScreen)
 {
+#ifdef __3DS__
+    if(g_GameManager.isInPracticeMode && !Practice::Current().SavesPoints())return;
+#endif
 
     u8 *fileBuffer;
     u8 originalByte;
@@ -1175,7 +1174,7 @@ i32 ResultScreen::HandleReplaySaveKeyboard()
             g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
             this->replayNumber = this->cursor;
             this->frameTimer = 0;
-            sprintf(this->defaultReplay.date, "%02i/%02i/%02i", tm->tm_mon, tm->tm_mday, tm->tm_year % 100);
+            sprintf(this->defaultReplay.date, "%02i/%02i/%02i", tm->tm_mon + 1, tm->tm_mday, tm->tm_year % 100);
             (this->defaultReplay).score = g_GameManager.score;
             if (*(i32 *)&this->replays[this->cursor].magic != *(i32 *)&"T6RP" ||
                 this->replays[this->cursor].version != GAME_VERSION)
@@ -1871,6 +1870,7 @@ ChainCallbackResult ResultScreen::OnUpdate(ResultScreen *resultScreen)
                     }
                 g_SoundPlayer.PlaySoundByIdx(SOUND_1UP);
             }
+            // Extra Records uses B as a code input.
             recordsCodeInput=code!=0;
         }
 #else
@@ -2105,9 +2105,13 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
     const bool nameEntry = resultScreen->resultScreenState == RESULT_SCREEN_STATE_WRITING_HIGHSCORE_NAME;
     const bool spellCards = resultScreen->resultScreenState == RESULT_SCREEN_STATE_SPELLCARDS;
     const bool records = board || nameEntry || spellCards;
-    const i32 spriteCount = records ? 1 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
+    const bool savingReplay=CtrReplayPanel::Saving(resultScreen->resultScreenState);
+    const i32 spriteCount = records || savingReplay ? 0 : ARRAY_SIZE_SIGNED(resultScreen->unk_40);
+    if(records)CtrRecordsPanel::ShowTitle(-30+30*std::min(1.f,float(enterFrame)/TitleFrames));
+    if(savingReplay)CtrReplayPanel::ShowSave(*resultScreen);
     CtrPresentation::SetContentOpacity(ContentOpacity(resultScreen));
     const f32 share = SpellShare(resultScreen);
+    // Advance slides on draws so text loading cannot consume the animation.
     if (switchFrame >= 0 && ++switchFrame >= CtrMenuTiming::Frames)
     {
         switchFrame = -1;
@@ -2381,6 +2385,7 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
 #endif
     g_AsciiManager.scale.x = 1.0;
     g_AsciiManager.scale.y = 1.0;
+#ifndef __3DS__
     if ((resultScreen->resultScreenState >= RESULT_SCREEN_STATE_SAVE_REPLAY_QUESTION) &&
         (resultScreen->resultScreenState <= RESULT_SCREEN_STATE_OVERWRITE_REPLAY_FILE))
     {
@@ -2434,6 +2439,7 @@ ChainCallbackResult ResultScreen::OnDraw(ResultScreen *resultScreen)
             }
         }
     }
+#endif
     g_AsciiManager.color = COLOR_WHITE;
     resultScreen->DrawFinalStats();
 

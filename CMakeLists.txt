@@ -15,6 +15,11 @@ add_executable(th06 ${CORE_SOURCES}
     src/platform/3ds/MusicControls.cpp
     src/platform/3ds/MusicDescription.cpp
     src/platform/3ds/RecordsPanel.cpp
+    src/platform/3ds/RecordHeadings.cpp
+    src/platform/3ds/ReplayPanel.cpp
+    src/platform/3ds/ReplayNames.cpp
+    src/platform/3ds/ReplayPortraits.cpp
+    src/platform/3ds/ReplayFlow.cpp
     src/platform/3ds/GameplayHud.cpp
     src/platform/3ds/GameplayLogo.cpp
     src/platform/3ds/PauseMenu.cpp

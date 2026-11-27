@@ -188,7 +188,6 @@ AnmManager::~AnmManager()
     IMG_Quit();
 }
 
-
 AnmManager::AnmManager()
 {
     IMG_Init(IMG_INIT_JPG | IMG_INIT_PNG);
@@ -282,7 +281,6 @@ void AnmManager::SetupVertexBuffer()
     g_PrimitivesToDrawUnknown[3].textureUV.x = this->vertexBufferContents[3].textureUV.x;
     g_PrimitivesToDrawUnknown[3].textureUV.y = this->vertexBufferContents[3].textureUV.y;
 
-
     if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
     {
         this->SetAttributePointer(VERTEX_ARRAY_POSITION, sizeof(*vertexBufferContents),
@@ -317,6 +315,7 @@ ZunResult AnmManager::LoadTexture(i32 textureIdx, const char *textureName, i32 t
 
     if(!textureSurface)return ZUN_ERROR;
 
+    // Some ANM headers report dimensions different from the loaded texture.
     const AnmRawEntry *entry = this->anmFiles[textureIdx];
     if (textureSurface->w != entry->width || textureSurface->h != entry->height)
     {
@@ -348,7 +347,6 @@ ZunResult AnmManager::LoadTexture(i32 textureIdx, const char *textureName, i32 t
     this->textures[textureIdx].width = textureSurface->w;
     this->textures[textureIdx].height = textureSurface->h;
     this->textures[textureIdx].format = textureFormat;
-
 
     g_GfxBackend->SetTextureImage(textureSurface->w, textureSurface->h, g_TextureFormatTypeGfxMapping[textureFormat],
                                   g_TextureFormatTypeMapping[textureFormat], rawTextureData);
@@ -495,6 +493,7 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
     const char *anmName = (char *)((u8 *)anm + anm->nameOffset);
 
 #ifdef __3DS__
+    // Widen text canvases before fitting translated playfield text.
     const bool playfieldTextCanvas=*anmName=='@' && std::strcmp(path,"data/text.anm")==0;
     const bool musicTextCanvas=*anmName=='@' &&
         (std::strcmp(path,"data/music01.anm")==0 || std::strcmp(path,"data/music02.anm")==0);
@@ -502,6 +501,7 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
     else if(musicTextCanvas) {anm->width=512;anm->height=512;}
 #endif
 
+    // Use ARGB when an ANM texture format is unspecified.
     if (anm->format == TEX_FMT_UNKNOWN)
     {
         anm->format = TEX_FMT_A8R8G8B8;
@@ -562,6 +562,7 @@ ZunResult AnmManager::LoadAnm(i32 anmIdx, const char *path, i32 spriteIdxOffset)
         loadedSprite.endPixelInclusive.y = rawSprite->offset.y + rawSprite->size.y;
 #ifdef __3DS__
         if(playfieldTextCanvas) {
+            // Give aliased text sprites separate rows to prevent overwrites.
             const int id=rawSprite->id;
             int row=0,height=32;
             if(id==0) {row=0;height=64;}
@@ -654,6 +655,7 @@ void AnmManager::LoadSprite(u32 spriteIdx, const AnmLoadedSprite *sprite)
     this->sprites[spriteIdx] = *sprite;
     this->sprites[spriteIdx].spriteId = this->maybeLoadedSpriteCount++;
 
+    // Shared stage-tile UV boundaries preserve linear interpolation across joins.
 #ifdef __3DS__
     const float inset=sprite->sourceFileIndex==ANM_FILE_STAGEBG?0.f:.5f;
 #else
@@ -874,6 +876,7 @@ ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
     float triangleX1, triangleX2, triangleY1, triangleY2;
     if (roundToPixel)
     {
+        // Round to OpenGL pixel boundaries. See inverseViewportMatrix().
 
         g_PrimitivesToDrawVertexBuf[0].position.x = rintf(g_PrimitivesToDrawVertexBuf[0].position.x);
         g_PrimitivesToDrawVertexBuf[2].position.x = g_PrimitivesToDrawVertexBuf[0].position.x;
@@ -937,7 +940,6 @@ ZunResult AnmManager::DrawOrthographic(const AnmVm *vm, bool roundToPixel)
     this->SetRenderStateForVm(vm);
 
     this->SetProjectionMode(PROJECTION_MODE_ORTHOGRAPHIC);
-
 
     if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
     {
@@ -1031,6 +1033,7 @@ ZunResult AnmManager::AddSpriteToDrawBuffer(VertexTex1Xyzrhw *vertices)
 #ifdef __3DS__
     auto* allocation=static_cast<CtrRenderer*>(g_GfxBackend)->ReserveSpriteVertices(4);
     if(!allocation)return ZUN_ERROR;
+    // Flush immediate-effect vertices before reserving a contiguous sprite batch.
     if(this->spritesToDraw && allocation!=this->vertexBufferEndPtr)this->FlushVertexBuffer();
     if(!this->spritesToDraw)this->vertexBufferStartPtr=this->vertexBufferEndPtr=allocation;
     CtrGraphics::PackQuad(this->vertexBufferEndPtr,vertices,this->dirtytTextureFactor);
@@ -1448,7 +1451,6 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
             this->SetTransformMatrix(MATRIX_TEXTURE, textureMatrix);
         }
 
-
         this->SetCurrentTexture(this->textures[vm->sprite->sourceFileIndex].handle);
 
         if (((g_Supervisor.cfg.opts >> GCOS_DONT_USE_VERTEX_BUF) & 1) == 0)
@@ -1475,7 +1477,6 @@ ZunResult AnmManager::Draw2(const AnmVm *vm)
                                   &g_PrimitivesToDrawUnknown[0].textureUV);
         this->SetAttributePointer(VERTEX_ARRAY_DIFFUSE, sizeof(*g_PrimitivesToDrawUnknown),
                                   &g_PrimitivesToDrawUnknown[0].diffuse);
-
 
         this->BackendDrawCall();
 
@@ -1951,6 +1952,7 @@ ZunResult AnmManager::LoadSurface(i32 surfaceIdx, const char *path)
     static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
     CtrPresentation::LoadSurface(surfaceIdx,path);
     if(CtrPresentation::ReplacesSurface(surfaceIdx)) {
+        // Full background copies use prepared artwork. Cropped copies need source pixels.
         surfaces[surfaceIdx]=LoadToSurfaceWithFormat(path,SDL_PIXELFORMAT_RGB24,nullptr);
         return surfaces[surfaceIdx]?ZUN_SUCCESS:ZUN_ERROR;
     }
@@ -1977,6 +1979,7 @@ void AnmManager::ReleaseSurface(i32 surfaceIdx)
 {
     this->FreeSurface(surfaceIdx);
 #ifdef __3DS__
+    // ReleaseSurface ends the scene. LoadSurface crossfades its replacement.
     CtrPresentation::ReleaseSurface(surfaceIdx);
 #endif
 }
@@ -2023,6 +2026,7 @@ void AnmManager::CopySurfaceRectToBackBuffer(i32 surfaceIdx, i32 dstX, i32 dstY,
     CtrPresentation::MarkScene();
     if(CtrPresentation::ReplacesSurface(surfaceIdx) && dstX==0 && dstY==0 &&
        rectLeft==0 && rectTop==0 && rectWidth==srcSurface->w && rectHeight==srcSurface->h) {
+        // Compose fitted artwork once across the physical screen.
         g_GfxBackend->SetClearColor(0,0,0,0);
         g_GfxBackend->Clear(CLEAR_COLOR_BUFFER);
         return;
@@ -2068,6 +2072,7 @@ void AnmManager::TakeScreenshot(i32 textureId, i32 left, i32 top, i32 width, i32
         goto cleanup;
     }
 
+    // Flip texture coordinates from D3D to OpenGL orientation.
     FlipSurface(unstretchedSurface);
 
     stretchSrcRect.x = 0;
@@ -2146,6 +2151,7 @@ void AnmManager::ApplySurfaceToColorBuffer(SDL_Surface *src, const SDL_Rect &src
     else
 #endif
     {
+        // Cache immutable surfaces until ReleaseSurface.
         FlushVertexBuffer();
         CreateTextureObject();
         g_GfxBackend->SetTextureImage(textureWidth, textureHeight, PIXEL_RGB, PIXEL_UNSIGNED_BYTE, NULL);

@@ -15,6 +15,7 @@
 #include "SpellTitleDecoration.hpp"
 #include "GameDecorations.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 
@@ -28,7 +29,7 @@ void CtrPlayfieldText::TickDialoguePanel(bool visible) {
 }
 float CtrPlayfieldText::DialoguePanelOpacity() {return dialoguePanel*dialoguePanel*(3-2*dialoguePanel);}
 float CtrPlayfieldText::DialogueTop() {
-    const float textHeight=12+28*std::max(0,CtrDialogue::LineCount()-1)+20*Scale()+8;
+    const float textHeight=12+28*(CtrDialogue::Capacity-1)+20*Scale()+8;
     return 464.f-std::max(CtrLayout::NameCardHeight/CtrLayout::Scale(),textHeight);
 }
 float CtrPlayfieldText::ResultsLeft() {
@@ -69,6 +70,7 @@ void CtrPlayfieldText::QueueBonus(const ZunVec3& position,int score,int frames,i
 }
 void CtrPlayfieldText::EnlargeAscii(ZunVec3& position,ZunVec2& scale,const char* text,bool stageResults) {
     if(stageResults) {
+        // Use the result grid's shared left edge and scale.
         scale=ZunVec2(CtrTextSizes::Results,CtrTextSizes::Results);
         return;
     }
@@ -78,6 +80,7 @@ void CtrPlayfieldText::EnlargeAscii(ZunVec3& position,ZunVec2& scale,const char*
     }
     columns=std::max(columns,line);
     const float width=columns*14.f*scale.x;
+    // Enlarge text once, preserving existing scale.
     const float factor=std::min(std::max(1.f,Scale()/std::max(scale.x,scale.y)),(Right-Left)/std::max(1.f,width));
     const float anchor=std::clamp((position.x-float(GAME_REGION_LEFT))/std::max(1.f,float(GAME_REGION_WIDTH)-width),0.f,1.f);
     position.x-=anchor*width*(factor-1);
@@ -104,6 +107,7 @@ void CtrPlayfieldText::Draw(const AnmVm& source,bool centered,float targetScale)
     vm.pos.y=source.pos.y-((source.flags.anchor&AnmVmAnchor_Top)?0:sprite.heightPx*source.scaleY*.5f);
     vm.pos.y=std::min(vm.pos.y,Bottom-sprite.heightPx*vm.scaleY);
     if(centered) {vm.flags.anchor=AnmVmAnchor_Center;vm.pos=source.pos;}
+    // Preserve screen-space fade and rotation independently of stage projection.
     g_AnmManager->Draw(&vm);
     g_AnmManager->SetCurrentSprite(nullptr);
 }
@@ -112,6 +116,7 @@ void CtrPlayfieldText::DrawStageTitle(const AnmVm& source,int stage) {
     const float width=std::min(source.ctrTextWidth,source.sprite->widthPx-source.ctrTextStart);
     if(width<=0)return;
     const float size=CtrLayout::Single()?1.5f:1.25f;
+    // Normalize text.anm's 1.5x caption scale before fitting the playfield.
     auto caption=source;
     caption.color=(source.color&0xffffffu)|(Fade(source.currentTimeInScript.current-120,240)<<24);
     caption.posOffset=ZunVec3(0,0,0);caption.rotation=ZunVec3(0,0,0);
@@ -144,6 +149,7 @@ void CtrPlayfieldText::DrawStageTitle(const AnmVm& source,int stage) {
 void CtrPlayfieldText::DrawMusicTitle(const AnmVm& source) {
     if(g_Gui.impl && g_Gui.impl->finishedStage)return;
     if(!source.sprite || source.ctrTextWidth<=0)return;
+    // Fade cropped music titles uniformly to avoid exposing off-screen padding.
     const int frame=musicFrame;
     if(musicBlocked || frame<=120 || frame>=450)return;
     const float opacity=std::clamp(std::min((frame-120)/24.f,(450-frame)/24.f),0.f,1.f);
@@ -181,6 +187,7 @@ void CtrPlayfieldText::DrawSpellcard(const AnmVm& source,const AnmVm& background
         sprite.heightPx=source.ctrTextHeight;
         sprite.uvEnd.y=(sprite.startPixelInclusive.y+sprite.heightPx-.5f)/sprite.textureHeight;
     }
+    // Preserve text.anm animation when cropping text. Classic shares Modern's player title.
     const bool modern=ModernBossLayout() || (classic && player);
     const float titleLeft=CtrBossSpellLayout::TitleLeft(CtrDecorations::CurrentBossName());
     const float available=modern && !player?CtrBossSpellLayout::Right-titleLeft:Right-Left-16;
@@ -254,10 +261,6 @@ void CtrPlayfieldText::QueueBossTimer(const ZunVec3& originalPosition,int second
     g_AsciiManager.scale=savedScale;
 }
 void CtrPlayfieldText::DrawDialogue(const AnmVm* lines) {
-    float widest=1;
-    for(int i=0;i<CtrDialogue::Capacity;i++)if(lines[i].sprite)
-        widest=std::max(widest,std::min(lines[i].ctrTextWidth,lines[i].sprite->widthPx));
-    const float factor=CtrSettings::English()?Scale():std::min(Scale(),352.f/widest);
     for(int i=0;i<CtrDialogue::Capacity;i++) {
         const auto& source=lines[i];if(!source.sprite || !source.flags.isVisible)continue;
         auto vm=source;auto sprite=*source.sprite;
@@ -269,12 +272,15 @@ void CtrPlayfieldText::DrawDialogue(const AnmVm* lines) {
             sprite.widthPx=std::min(source.ctrTextWidth,sprite.widthPx);
             sprite.uvEnd.x=sprite.uvStart.x+sprite.widthPx/sprite.textureWidth;
         }
+        const float factor=CtrSettings::English()?Scale():std::min(Scale(),352.f/std::max(1.f,sprite.widthPx));
         sprite.widthPx=CtrDialogue::Width(i,sprite.widthPx);
         if(sprite.widthPx<=0)continue;
+        // Keep the UV-to-pixel ratio fixed as the reveal edge advances.
+        sprite.widthPx=std::ceil(sprite.widthPx*factor)/factor;
         sprite.uvEnd.x=sprite.uvStart.x+sprite.widthPx/sprite.textureWidth;
         vm.sprite=&sprite;vm.flags.anchor=AnmVmAnchor_TopLeft;
         vm.pos=ZunVec3(CtrSettings::English()?40.f:Left,DialogueTop()+12+28*i,source.pos.z);vm.posOffset=ZunVec3(0,0,0);
-        vm.scaleX=vm.scaleY=factor;
+        vm.scaleX=factor;vm.scaleY=Scale();
         g_AnmManager->DrawNoRotation(&vm);g_AnmManager->SetCurrentSprite(nullptr);
     }
 }

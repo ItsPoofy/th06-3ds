@@ -50,6 +50,7 @@ bool CtrSfx::Initialize(int level) {
  ndspChnSetInterp(Channel,NDSP_INTERP_POLYPHASE);
  float mix[12]{};mix[0]=mix[1]=1;ndspChnSetMix(Channel,mix);
  active.store(true,std::memory_order_release);
+ // Mix outside NDSP's 4 KiB callback stack at a higher priority than gameplay.
  worker=threadCreate(MixThread,nullptr,32*1024,0x19,-1,false);
  if(!worker){Shutdown();return false;}
  LightEvent_Signal(&audioEvent);

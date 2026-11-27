@@ -44,8 +44,8 @@ bool CtrSelectionArt::Initialize() {
     }
     return true;
 }
-void CtrSelectionArt::DrawDigit(unsigned digit,float x,float y) {
-    if(atlas.ready)CtrNative::DrawImage({&atlas.gpu,&digits[digit]},x,y);
+void CtrSelectionArt::DrawDigit(unsigned digit,float x,float y,float scale) {
+    if(atlas.ready)CtrNative::DrawImage({&atlas.gpu,&digits[digit]},x,y,0xffffffff,scale,scale);
 }
 void CtrSelectionArt::RefreshLanguage() {
     if(atlasEnglish==CtrSettings::English())return;

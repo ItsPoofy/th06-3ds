@@ -24,11 +24,19 @@ struct View {
     float slide=0,opacity=1;
     float LowerSlide() const {return slide;}
 };
+// controls is false during high-score name entry.
 void Show(bool controls,View view={});
 void ShowSpellCards(View view={});
+void ShowTitle(float y);
 void Clear();
 void Release();
 void Draw(C3D_RenderTarget* top,C3D_RenderTarget* bottom);
+
+// Records atlas labels for other menus. Labels are stored at menu-layer size,
+// so scale .5 draws one at its records size. x and y are screen pixels.
+bool PrepareLabels();
+float LabelWidth(const char* name);
+void DrawLabel(const char* name,float x,float y,unsigned alpha,float scale,unsigned tint=0xffffff);
 
 struct Hit {int row=-1,index=0;};
 // Maps a lower-screen tap (screen pixels) to a row and choice.

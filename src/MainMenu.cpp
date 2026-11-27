@@ -28,6 +28,8 @@
 #include "platform/3ds/SelectionLayout.hpp"
 #include "platform/3ds/PracticeSelection.hpp"
 #include "platform/3ds/PracticeMenu.hpp"
+#include "platform/3ds/ReplayPanel.hpp"
+#include "platform/3ds/ReplayFlow.hpp"
 #include "platform/3ds/NdspAudio.hpp"
 #include "practice/Session.hpp"
 #include "practice/RunTransition.hpp"
@@ -63,6 +65,7 @@ static bool CustomPracticeSelection() {
 }
 #ifdef __3DS__
 static CtrMenuTiming::Clock g_MenuAnimationClocks[122];
+// Return from Records and Music Room to the open title menu.
 static bool g_ReturnToMenuList = false;
 #endif
 
@@ -174,6 +177,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
                 g_Supervisor.curState = SUPERVISOR_STATE_EXITSUCCESS;
                 return CHAIN_CALLBACK_RESULT_CONTINUE_AND_REMOVE_JOB;
             }
+            // Match the VM interrupts after shot selection.
             for (auto &vm : menu->vm)
             {
                 vm.pendingInterrupt = 19;
@@ -732,6 +736,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         if (WAS_PRESSED(TH_BUTTON_SELECTMENU))
         {
 #ifdef __3DS__
+            // Finish the character spin before interrupt 13 opens the weapon cards.
             if(!CtrSelectionFlow::CharacterReady(*menu))break;
 #endif
             menu->gameState = STATE_SHOT_SELECT;
@@ -1106,6 +1111,7 @@ ChainCallbackResult MainMenu::OnUpdate(MainMenu *menu)
         if (hasLoadedSprite)
         {
 #ifdef __3DS__
+            // Keep the logo animation running through Settings transitions.
             if(i>=27 && i<=33 && menu->gameState!=STATE_PRE_INPUT &&
                menu->gameState!=STATE_MAIN_MENU) menu->vm[i].pendingInterrupt=0;
 #endif
@@ -1443,8 +1449,12 @@ ZunResult MainMenu::DrawStartMenu(void)
                 this->gameState = STATE_REPLAY_LOAD;
                 g_GameManager.isInPracticeMode = 0;
                 this->stateTimer = 0;
+#ifdef __3DS__
+                this->minimumOpacity = this->menuTextColor = COLOR_MENU_ACTIVE_BACKGROUND;
+#else
                 this->minimumOpacity = 0x40000000;
                 this->menuTextColor = COLOR_BLACK;
+#endif
                 this->numFramesSinceActive = 0;
                 this->framesActive = MenuDuration(60);
                 g_SoundPlayer.PlaySoundByIdx(SOUND_SELECT);
@@ -1576,6 +1586,9 @@ i32 MainMenu::ReplayHandling()
                     anmVm->pendingInterrupt = 15;
                 }
                 this->cursor = 0;
+#ifdef __3DS__
+                CtrReplayFlow::RestoreSelection(*this);
+#endif
             }
             break;
         }
@@ -1642,6 +1655,9 @@ i32 MainMenu::ReplayHandling()
         {
             this->gameState = STATE_REPLAY_UNLOAD;
             this->stateTimer = 0;
+#ifdef __3DS__
+            CtrPresentation::PrepareReturn("data/title/title00.jpg");
+#endif
             for (cur = 0; cur < ARRAY_SIZE_SIGNED(this->vm); cur++)
             {
                 this->vm[cur].pendingInterrupt = 4;
@@ -1652,11 +1668,18 @@ i32 MainMenu::ReplayHandling()
         }
         break;
     case STATE_REPLAY_SELECT:
+#ifndef __3DS__
         if (this->stateTimer < MenuDuration(0x28))
         {
             break;
         }
-        cur = MoveCursor(this, 7);
+#endif
+#ifdef __3DS__
+        const auto replayAction=CtrReplayFlow::Update(*this);
+        if(replayAction==CtrReplayFlow::Action::Block)break;
+        if(replayAction==CtrReplayFlow::Action::Navigate)CtrReplayFlow::MoveStage(*this);
+#else
+        cur = MoveCursor(this,7);
         if (cur < 0)
         {
             while (this->replayFileData[this->chosenReplay].header->stageReplayDataOffsets[this->cursor] == 0)
@@ -1679,7 +1702,12 @@ i32 MainMenu::ReplayHandling()
                 }
             }
         }
-        if (WAS_PRESSED(TH_BUTTON_SELECTMENU) /*&& this->currentReplay[this->cursor].header->stageReplayDataOffsets*/)
+#endif
+#ifdef __3DS__
+        if(replayAction==CtrReplayFlow::Action::Start)
+#else
+        if(WAS_PRESSED(TH_BUTTON_SELECTMENU))
+#endif
         {
             g_GameManager.isInReplay = 1;
             g_Supervisor.framerateMultiplier = 1.0;
@@ -1727,6 +1755,10 @@ i32 MainMenu::ReplayHandling()
 
 ZunResult MainMenu::DrawReplayMenu() const
 {
+#ifdef __3DS__
+    CtrReplayPanel::Show(*this);
+    return ZUN_SUCCESS;
+#else
     i32 replayAmount;
     i32 i;
     const AnmVm *vmRef;
@@ -1826,6 +1858,7 @@ ZunResult MainMenu::DrawReplayMenu() const
     g_AsciiManager.color = COLOR_WHITE;
     g_AsciiManager.isSelected = false;
     return ZUN_SUCCESS;
+#endif
 }
 
 void MainMenu::ColorMenuItem(AnmVm *vm, i32 item, i32 subItem, i32 subItemSelected) const
@@ -2475,6 +2508,7 @@ ZunResult MainMenu::LoadReplayMenu(MainMenu *menu)
         vm->flags.zWriteDisable = 1;
     }
 #ifdef __3DS__
+    CtrReplayFlow::MenuReady();
     CtrGameLoop::ResetClock();
 #endif
     return ZUN_SUCCESS;
@@ -2486,7 +2520,11 @@ ZunResult MainMenu::RegisterChain(u32 isDemo)
 
     std::memset(menu, 0, sizeof(MainMenu));
     g_GameManager.isInGameMenu = 0;
+#ifdef __3DS__
+    menu->gameState = isDemo || CtrReplayFlow::ReturningToList() ? STATE_REPLAY_LOAD : STATE_STARTUP;
+#else
     menu->gameState = isDemo ? STATE_REPLAY_LOAD : STATE_STARTUP;
+#endif
     g_Supervisor.framerateMultiplier = 0.0;
     menu->chainCalc = g_Chain.CreateElem((ChainCallback)MainMenu::OnUpdate);
     menu->chainCalc->arg = menu;
@@ -2587,7 +2625,7 @@ ZunResult MainMenu::AddedCallback(MainMenu *m)
 #endif
             g_Supervisor.PlayAudio("bgm/th06_01.mid");
 #ifdef __3DS__
-            if (!g_ReturnToMenuList && !Practice::RunTransition::ExitPresented())
+            if (!g_ReturnToMenuList && !CtrReplayFlow::ReturningToList() && !Practice::RunTransition::ExitPresented())
 #endif
             ScreenEffect::RegisterChain(SCREEN_EFFECT_FADE_IN, MenuDuration(120), titleFadeColor, 0, 0);
         }

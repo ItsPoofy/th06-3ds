@@ -2,9 +2,7 @@
 
 A Nintendo 3DS port of **Touhou Koumakyou ~ the Embodiment of Scarlet Devil** with additional quality-of-life features, based on [GensokyoClub/th06](https://github.com/GensokyoClub/th06).
 
-Compatible with both **Old and New Nintendo 3DS and 2DS systems**.
-
-**This port is a work in progress.** 
+Compatible with both **Old and New Nintendo 3DS and 2DS**.
 
 You'll need the original PC game files or the Steam Classic version. The included Windows converter prepares them for the 3DS.
 
@@ -17,6 +15,8 @@ You'll need the original PC game files or the Steam Classic version. The include
 - Optional circular boss health bars, focus hitbox indicator, and sidebar life/bomb counters.
 - English/Japanese language selection, including translated dialogue and endings.
 
+See [new features and settings](docs/features.md).
+
 ## Screenshots
 
 <p align="center">
@@ -27,52 +27,25 @@ You'll need the original PC game files or the Steam Classic version. The include
 
 Screenshots taken in Azahar.
 
-## Known unfinished parts
-
-- Music Room currently uses only one screen.
-- Some score displays are still too small on the console.
-- Menu layouts and text sizing still need work.
-
 ## Requirements
 
 - A homebrew-enabled 3DS or 2DS.
-- The original Japanese TH06 game files or [Touhou Koumakyou: Classic - the Embodiment of Scarlet Devil](https://store.steampowered.com/app/4924840/), including the DAT archives and WAV music in `bgm`.
+- The original Japanese TH06 1.02h or [Touhou Koumakyou: Classic - the Embodiment of Scarlet Devil](https://store.steampowered.com/app/4924840/). Hard patched versions (those which have had their original files overwritten) are not supported.
 - A Windows 10 or 11 PC to run the converter.
 - DSP firmware dumped on your console for audio. See [3DS Hacks Guide](https://3ds.hacks.guide/finalizing-setup.html).
 
 ## Installation
 
-Download `TH06-Asset-Converter.exe` and either `th06.3dsx` or `th06.cia` from the [latest release](https://github.com/ItsPoofy/th06-3ds/releases/latest).
+1. Download `TH06-Asset-Converter.exe` and either `th06.3dsx` or `th06.cia` from the [latest release](https://github.com/ItsPoofy/th06-3ds/releases/latest).
+2. Run the converter from a writable folder on your PC.
+3. Select your TH06 game folder containing the DAT archives and `bgm`. For Steam Classic, select `th06c`.
+4. Wait for **Assets ready**. The converter creates an `assets` folder beside the executable.
+5. Place that folder at `/3ds/th06/assets/` on your SD card. You can transfer files by inserting the SD card into your PC or wirelessly using [FTPD](https://github.com/mtheall/ftpd).
 
-To install the latest CIA directly on your 3DS, open FBI, select **Remote Install > Scan QR Code**, and scan this code. Prepare and copy the assets with the steps below.
+- **3DSX:** Copy `th06.3dsx` to `/3ds/th06/` and launch Touhou 6 from Homebrew Launcher.
+- **CIA:** Copy `th06.cia` to your SD card and install it with FBI. You can also install directly through FBI’s **Remote Install > Scan QR Code** using the download QR code. Launch Touhou 6 from the home menu.
 
-[![QR code for the latest th06.cia download](docs/download-cia-qr.png)](https://github.com/ItsPoofy/th06-3ds/releases/latest/download/th06.cia)
-
-1. Put the converter in a writable folder on your PC, then run it.
-2. Select your TH06 game folder—the folder containing the DAT archives and `bgm` (`th06c` for Steam Classic).
-3. Wait for **Assets ready**. The converter creates an `assets` folder beside the executable. Music conversion can take a few minutes.
-4. Copy that `assets` folder to `/3ds/th06/` on your SD card.
-
-Then install your chosen build:
-
-- **3DSX:** Copy `th06.3dsx` to `/3ds/th06/`, then launch **Touhou 6** from Homebrew Launcher.
-- **CIA:** Copy `th06.cia` to your SD card, install it with FBI, then launch **Touhou 6** from the HOME Menu.
-
-Both builds need `/3ds/th06/assets/`.
-
-```text
-SD card/
-└── 3ds/
-    └── th06/
-        ├── th06.3dsx   ← only needed for Homebrew Launcher
-        └── assets/
-            ├── asset-version.txt
-            ├── audio/
-            ├── data/
-            ├── textures/
-            ├── ui/
-            └── variants/
-```
+[![Download the latest CIA with FBI](docs/download-cia-qr.png)](https://github.com/ItsPoofy/th06-3ds/releases/latest/download/th06.cia)
 
 ## Controls
 

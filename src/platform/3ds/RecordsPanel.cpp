@@ -1,6 +1,8 @@
 #include "RecordsPanel.hpp"
+#include "RecordHeadings.hpp"
 #include "PackedTexture.hpp"
 #include "NativeImage.hpp"
+#include "MenuCaption.hpp"
 #include "ContentAssets.hpp"
 #include "CtrRenderer.hpp"
 #include "Presentation.hpp"
@@ -15,7 +17,8 @@ CtrAssets::PackedTexture atlas;
 bool atlasEnglish=false;
 struct Shown {bool on=false;CtrRecordsPanel::View view;};
 Shown boardShown,spellShown;
-bool controlsShown=false;
+bool controlsShown=false,titleShown=false;
+float titleY=0;
 CtrRecordsPanel::Board board;
 
 // Labels are drawn at half size: the atlas holds them at layer resolution.
@@ -38,16 +41,23 @@ bool Ready() {
     return atlas.Load(CtrContent::Path("ui","records-atlas.bin").c_str());
 }
 
-void Label(const char* name,float x,float y,unsigned alpha=255,float scale=LabelScale) {
+void Label(const char* name,float x,float y,unsigned alpha=255,float scale=LabelScale,unsigned tint=0xffffff) {
     const auto* label=Find(name);
     if(!label)return;
     const int width=Width(*label);
     const float w=atlas.gpu.width,h=atlas.gpu.height;
     Tex3DS_SubTexture sub{u16(width),u16(label->h),label->x/w,1-label->y/h,(label->x+width)/w,1-(label->y+label->h)/h};
-    CtrNative::DrawImage({&atlas.gpu,&sub},x,y,C2D_Color32(255,255,255,alpha),scale,scale);
+    CtrNative::DrawImage({&atlas.gpu,&sub},x,y,C2D_Color32((tint>>16)&255,(tint>>8)&255,tint&255,alpha),scale,scale);
 }
 void Centered(const char* name,float cx,float cy,bool selected,float opacity) {
     Label(name,(cx-LayerWidth(name)/2)*LabelScale,(cy-InkCenter)*LabelScale,unsigned((selected?255:Dimmed)*opacity));
+}
+void DrawCaptionCell(const char* name,float x,float y,bool active,unsigned alpha) {
+    const auto* label=Find(name);if(!label)return;
+    const float w=atlas.gpu.width,h=atlas.gpu.height;
+    Tex3DS_SubTexture sub{u16(Width(*label)),u16(label->h),label->x/w,1-label->y/h,
+        (label->x+Width(*label))/w,1-(label->y+label->h)/h};
+    CtrMenuCaption::Draw({&atlas.gpu,&sub},x,y,active,alpha);
 }
 void Line(float x0,float y,float x1,unsigned color) {C2D_DrawRectSolid(x0,y,0,x1-x0,1,color);}
 
@@ -66,10 +76,16 @@ void CtrRecordsPanel::Show(bool controls,View view) {
     CtrPresentation::ShowListBox(24+view.slide,TableTop-34,424+view.slide,TableTop+10*TableSpacing+6,false,false,view.opacity);
 }
 void CtrRecordsPanel::ShowSpellCards(View view) {spellShown={true,view};}
-void CtrRecordsPanel::Clear() {boardShown.on=spellShown.on=false;}
+void CtrRecordsPanel::ShowTitle(float y) {titleShown=CtrRecordHeadings::Prepare();titleY=y;}
+void CtrRecordsPanel::Clear() {boardShown.on=spellShown.on=titleShown=false;}
 void CtrRecordsPanel::Release() {
     if(atlas.ready && g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
     atlas.Clear();
+}
+bool CtrRecordsPanel::PrepareLabels() {return Ready();}
+float CtrRecordsPanel::LabelWidth(const char* name) {return LayerWidth(name);}
+void CtrRecordsPanel::DrawLabel(const char* name,float x,float y,unsigned alpha,float scale,unsigned tint) {
+    Label(name,x,y,alpha,scale,tint);
 }
 
 namespace {
@@ -83,6 +99,9 @@ void Move(const CtrRecordsPanel::View& view,bool lower) {
 void DrawSpellCards(C3D_RenderTarget* top,C3D_RenderTarget* bottom,CtrRecordsPanel::View view) {
     using namespace CtrRecordsPanel;
     const float opacity=view.opacity;
+    C2D_SceneBegin(top);
+    Move(view,false);
+    Label("spellcards",HeaderX,HeaderY,unsigned(255*opacity),LabelScale/1.5f);
     C2D_SceneBegin(bottom);
     Move(view,true);
     // The caption "SPELL CARD No.00" is 16 characters.
@@ -107,10 +126,11 @@ void DrawBoard(C3D_RenderTarget* top,C3D_RenderTarget* bottom,CtrRecordsPanel::V
     C2D_SceneBegin(bottom);
     Move(view,true);
     const unsigned rule=Rule(opacity);
-    static const char* captions[]={"DIFFICULTY","CHARACTER","SHOT TYPE"};
+    static const char* captionLabels[]={"caption-difficulty","caption-character","caption-shot"};
     for(int row=0;row<3;row++) {
-        const float y=(SectionTop(row)+Caption/2)*LabelScale;
-        Line((Left+14*CaptionScale*std::strlen(captions[row])+12)*LabelScale,y,Right*LabelScale,rule);
+        DrawCaptionCell(captionLabels[row],Left*LabelScale,SectionTop(row)*LabelScale,row==board.focus,unsigned(255*opacity));
+        CtrMenuCaption::Rule(Left*LabelScale,SectionTop(row)*LabelScale,
+            LayerWidth(captionLabels[row])*LabelScale,Right*LabelScale,unsigned(255*opacity));
     }
     Line(Left*LabelScale,Divider*LabelScale,Right*LabelScale,rule);
 
@@ -134,7 +154,12 @@ void DrawBoard(C3D_RenderTarget* top,C3D_RenderTarget* bottom,CtrRecordsPanel::V
 }
 
 void CtrRecordsPanel::Draw(C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
-    if((!boardShown.on && !spellShown.on) || !Ready())return;
+    if((!boardShown.on && !spellShown.on && !titleShown) || !Ready())return;
+    if(titleShown) {
+        C2D_ViewReset();C2D_SceneBegin(top);
+        CtrRecordHeadings::Draw("records",52,titleY+4,0xffffffff,300);
+        CtrRecordHeadings::Draw("subtitle",65,titleY+19,0xffffffff,280);
+    }
     if(boardShown.on)DrawBoard(top,bottom,boardShown.view);
     if(spellShown.on)DrawSpellCards(top,bottom,spellShown.view);
     C2D_ViewReset();
@@ -148,6 +173,7 @@ CtrRecordsPanel::Hit CtrRecordsPanel::Touch(int x,int y) {
         if(layerY<SectionTop(row) || layerY>=SectionTop(row)+Section)continue;
         hit.row=row;
         if(row==DifficultyRow) {
+            // Tap cells extend halfway into adjacent gaps.
             float left[5],width[5];
             DifficultyEdges(left,width);
             hit.index=0;

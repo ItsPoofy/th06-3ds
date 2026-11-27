@@ -22,6 +22,7 @@ void CtrBossPresentation::TrackDefeat(const Enemy* enemy,const Effect* effect) {
 }
 void CtrBossPresentation::Retire(const Enemy* enemy) {
     if(actor==enemy)actor=nullptr;
+    // Retired enemy slots keep existing defeat effects but cannot register new ones.
     if(owner==enemy)owner=nullptr;
 }
 bool CtrBossPresentation::Visible() {

@@ -44,6 +44,7 @@ bool Practice::Th06::StageAvailable(int stage) {
         const auto& clears=g_GameManager.clrd[session.shot];
         const int reached=std::max(clears.difficultyClearedWithRetries[difficulty],clears.difficultyClearedWithoutRetries[difficulty]);
         if(difficulty==EXTRA)return reached>=6;
+        // Clear-data value 1 is the default, so it cannot establish a stage visit.
         if(reached>1 && stage<=std::min(reached+1,difficulty==EASY?5:6))return true;
         return stage<=6 && g_GameManager.pscr[session.shot][stage-1][difficulty].score>0;
     }

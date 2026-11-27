@@ -91,5 +91,6 @@ inline constexpr Label labels[]={
 {"hud-digit9",454,873,16,16},
 {"name-bar",496,723,14,16},
 {"player-name-bar",497,753,14,16},
+{"hud-rank",401,65,48,16},
 };
 }

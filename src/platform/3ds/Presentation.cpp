@@ -1,4 +1,7 @@
 #include "RecordsPanel.hpp"
+#include "RecordHeadings.hpp"
+#include "ReplayPanel.hpp"
+#include "ReplayFlow.hpp"
 #include "MenuTiming.hpp"
 #include "PracticeSelection.hpp"
 #include "PracticeMenu.hpp"
@@ -55,6 +58,7 @@ struct Texture {
     void Draw(float x=0,float y=0,unsigned alpha=255,unsigned brightness=255) {
         if(ready)CtrNative::DrawImage({&gpu,&sub},x,y,C2D_Color32(brightness,brightness,brightness,alpha));
     }
+    // Sample inside artwork edge texels to avoid seams.
     void DrawArtwork(unsigned alpha=255,unsigned brightness=255) {
         if(!ready)return;
         Tex3DS_SubTexture inner=sub;
@@ -68,6 +72,7 @@ struct Texture {
 };
 Texture previousArtwork;int backgroundFrame=CtrMenuTiming::Frames;
 float backgroundMix=1;
+// Preserve outgoing artwork brightness during crossfades.
 unsigned shownBrightness=255,previousBrightness=255;
 float contentOpacity=1;
 Texture returnArtwork;
@@ -154,24 +159,31 @@ bool CtrPresentation::RefreshMaterial() {
     return material.Load("gameplay-material");
 }
 void CtrPresentation::ReleaseMenuAssets() {
-    CtrRecordsPanel::Release();
+    CtrReplayPanel::Release();
+    CtrRecordsPanel::Release();CtrRecordHeadings::Release();
     if(!menuAssetsReady)return;
+    // Wait for GPU reads before releasing menu artwork after the first gameplay frame.
     C3D_FrameSync();
     for(Texture* t:{&previousArtwork,&artwork,&returnArtwork,&mainBottom,&creditsBottom})t->Clear();
     CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrMenuTypeface::Shutdown();
     surfaceName.clear();surfaceVariant.clear();menuAssetsReady=false;
 }
 void CtrPresentation::ReleaseMenuText() {
+    CtrReplayPanel::Release();
+    // Release menu text sheets before loading stage data to free console memory.
     if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
+    CtrRecordsPanel::Release();CtrRecordHeadings::Release();
     CtrPractice::Shutdown();CtrMenuTypeface::Shutdown();menuAssetsReady=false;
 }
 void CtrPresentation::Shutdown() {
+    CtrReplayPanel::Release();
+    CtrRecordHeadings::Release();
     CtrDecorations::Shutdown();CtrSelectionArt::Shutdown();CtrCharacterPortraits::Shutdown();CtrPractice::Shutdown();CtrMenuTypeface::Shutdown();CtrHud::Shutdown();
     for(Texture* t:{&previousArtwork,&artwork,&returnArtwork,&mainBottom,&creditsBottom,&material,&font,&contentFont})t->Clear();
     menuAssetsReady=false;surfaceName.clear();surfaceVariant.clear();
 }
 void CtrPresentation::BeginScene() {
-    CtrSelection::BeginScene();CtrRecordsPanel::Clear();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;
+    CtrSelection::BeginScene();CtrRecordsPanel::Clear();CtrReplayPanel::Clear();panel=Panel::None;shadeCount=overlayCount=0;hasScene=false;logoOpacity=255;
     contentOpacity=1;listBoxCount=0;
 }
 void CtrPresentation::MarkScene() {hasScene=true;}
@@ -194,7 +206,8 @@ void CtrPresentation::LoadSurface(int slot,const char* path) {
     if(artwork.ready && name==surfaceName && variant==surfaceVariant)return;
     if(artwork.ready || !previousArtwork.ready) {
         previousArtwork.Clear();previousSurfaceName=surfaceName;
-        if(panel==Panel::Loading)artwork.Clear();else previousArtwork=artwork;
+        // Discard artwork hidden by the loading fade.
+        if(panel==Panel::Loading && g_MainMenu.gameState!=STATE_REPLAY_LOAD)artwork.Clear();else previousArtwork=artwork;
         previousBrightness=shownBrightness;
     }
     artwork={};backgroundFrame=previousArtwork.ready?0:CtrMenuTiming::Frames;
@@ -203,6 +216,7 @@ void CtrPresentation::LoadSurface(int slot,const char* path) {
 }
 void CtrPresentation::ReleaseSurface(int slot) {
     if(slot!=0 || (!artwork.ready && !previousArtwork.ready))return;
+    // Wait for GPU reads before discarding the crossfade source.
     if(g_GfxBackend)static_cast<CtrRenderer*>(g_GfxBackend)->SynchronizeAssets();
     previousArtwork.Clear();previousSurfaceName.clear();
     backgroundFrame=CtrMenuTiming::Frames;backgroundMix=1;
@@ -232,11 +246,14 @@ void CtrPresentation::CaptureShade(float left,float top,float right,float bottom
     } else if(overlayCount<overlays.size())overlays[overlayCount++]=color;
 }
 bool CtrPresentation::ReplacesMenu(const MainMenu& menu,int vmIndex) {
+    if(vmIndex>=96 && (menu.gameState==STATE_REPLAY_ANIM || menu.gameState==STATE_REPLAY_SELECT ||
+                       menu.gameState==STATE_REPLAY_UNLOAD))return true;
     if(vmIndex>=27 && vmIndex<=33) return !(menu.gameState==STATE_PRE_INPUT ||
         menu.gameState==STATE_MAIN_MENU || menu.gameState==STATE_OPTIONS ||
         menu.gameState==STATE_KEYCONFIG || menu.gameState==STATE_DIFFICULTY_LOAD ||
         menu.gameState==STATE_CHARACTER_LOAD);
     if(vmIndex>=80 && vmIndex<=95)return true;
+    // Replace title text VMs throughout their exit animation.
     return vmIndex<80;
 }
 void CtrPresentation::CaptureMenu(const MainMenu& menu) {
@@ -246,6 +263,7 @@ void CtrPresentation::CaptureMenu(const MainMenu& menu) {
     auto add=[&](int i,const char* label,const std::string& value="") {
         rows[i]={label,value,i==menu.cursor,false};
     };
+    // Keep the replacement panel active through delayed native VM entrances.
     auto styleRow=[&](int i,float selectionOffset) {
         auto& row=rows[i];
         row.opacity=row.selected?255:128;
@@ -266,6 +284,7 @@ void CtrPresentation::CaptureMenu(const MainMenu& menu) {
             g_GameManager.HasReachedMaxClears(1,0) || g_GameManager.HasReachedMaxClears(1,1));
     };
     if(menu.gameState==STATE_CHARACTER_LOAD || menu.gameState==STATE_STARTUP) {
+        // Hold the lower screen black until the returning title scene is ready.
         panel=Panel::Selection;rowCount=0;
     } else if(menu.gameState==STATE_DIFFICULTY_LOAD || menu.gameState==STATE_REPLAY_LOAD ||
        menu.gameState==STATE_SCORE || menu.gameState==STATE_MUSIC_ROOM) {
@@ -366,7 +385,7 @@ void DrawPanelInternal(C3D_RenderTarget* bottom) {
         Label(panel==Panel::Controls?"Controls":CtrOptions::Heading(optionPage),160+headingX,6+headingY,false,false,true,headingOpacity);
         const bool categories=panel==Panel::Options && optionPage<0;
         const float y0=panel==Panel::Controls?30:categories?CtrOptions::CategoriesTop:CtrOptions::RowsTop;
-        const float spacing=panel==Panel::Controls?17:categories?CtrOptions::CategorySpacing:CtrOptions::RowSpacing;
+        const float spacing=panel==Panel::Controls?17:categories?CtrOptions::CategorySpacing:CtrOptions::RowSpacing(rowCount);
         for(int i=0;i<rowCount;i++) {
             const auto& r=rows[i];const float y=y0+i*spacing+r.slideY;
             Label(r.label,22+r.slideX,y,r.selected,r.disabled,false,r.opacity);
@@ -422,15 +441,17 @@ unsigned CtrPresentation::SceneOpacity() {
     return opacity;
 }
 void CtrPresentation::TouchMenu(MainMenu& menu,int x,int y) {
+    if(CtrReplayFlow::Touch(x,y))return;
     if(CtrSelectionFlow::Touch(x,y))return;
     if(CtrPracticeMenu::Touch(menu,x,y))return;
     auto press=[&](unsigned button) {g_CurFrameInput|=button;g_LastFrameInput&=~button;};
     if(menu.gameState==STATE_PRE_INPUT) {press(TH_BUTTON_ENTER);return;}
     if(menu.stateTimer<CtrMenuTiming::Frames)return;
+    if(const int button=CtrReplayPanel::TouchButton(x,y)) {press(button);return;}
     if(panel==Panel::Main || panel==Panel::Options || panel==Panel::Controls) {
         const bool categories=panel==Panel::Options && optionPage<0;
         const float start=panel==Panel::Main?14:panel==Panel::Options?(categories?CtrOptions::CategoriesTop:CtrOptions::RowsTop):30;
-        const float spacing=panel==Panel::Main?26:panel==Panel::Options?(categories?CtrOptions::CategorySpacing:CtrOptions::RowSpacing):17;
+        const float spacing=panel==Panel::Main?26:panel==Panel::Options?(categories?CtrOptions::CategorySpacing:CtrOptions::RowSpacing(rowCount)):17;
         for(int i=0;i<rowCount;i++) {
             const auto& r=rows[i];const float rowY=start+i*spacing+r.slideY;
             if(r.disabled || !r.opacity || x<r.slideX || x>=320+r.slideX || y<rowY-4 || y>=rowY+spacing-4)continue;
@@ -472,6 +493,7 @@ void CtrPresentation::DrawContentFade(C3D_RenderTarget* top,C3D_RenderTarget* bo
     const bool crossfading=backgroundMix<1 && previousArtwork.ready;
     const float shown=std::min(contentOpacity,crossfading?backgroundMix:1.f);
     if(shown>=1)return;
+    // Composite current and outgoing artwork to match backgroundMix at content opacity.
     const float cover=1-shown,mix=crossfading?backgroundMix:1;
     const float outgoing=cover*(1-mix),incoming=outgoing<1?cover*mix/(1-outgoing):0;
     C2D_SceneBegin(top);

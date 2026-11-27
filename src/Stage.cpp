@@ -19,6 +19,7 @@
 #include "Supervisor.hpp"
 #include "ZunColor.hpp"
 #include "utils.hpp"
+#include <algorithm>
 #ifdef __3DS__
 #include "TextHelper.hpp"
 #endif
@@ -63,6 +64,7 @@ ChainCallbackResult Stage::OnUpdate(Stage *stage)
     }
     if (g_GameManager.isTimeStopped)
     {
+        // Darken Sakuya's spell background during time stop.
         COLOR_SET_COMPONENT(stage->spellcardBackground.color, COLOR_ALPHA_BYTE_IDX, 0x60);
         COLOR_SET_COMPONENT(stage->spellcardBackground.color, COLOR_BLUE_BYTE_IDX, 0x80);
         COLOR_SET_COMPONENT(stage->spellcardBackground.color, COLOR_GREEN_BYTE_IDX, 0x30);
@@ -245,7 +247,6 @@ ChainCallbackResult Stage::OnDrawHighPrio(Stage *stage)
         g_AnmManager->SetFogColor(stage->skyFog.color);
     }
 
-
     g_AnmManager->SetFogRange(stage->skyFog.nearPlane, stage->skyFog.farPlane);
 
     if (stage->spellcardState <= RUNNING)
@@ -261,28 +262,24 @@ ChainCallbackResult Stage::OnDrawHighPrio(Stage *stage)
 
 ChainCallbackResult Stage::OnDrawLowPrio(Stage *stage)
 {
-    i32 stageToSpellcardBackgroundAlpha;
-    ZunRect gameRegion;
-
     if (stage->spellcardState <= RUNNING)
     {
         if (!g_Gui.IsStageFinished())
         {
             stage->RenderObjects(2);
             stage->RenderObjects(3);
-            if (stage->spellcardState == RUNNING)
-            {
-                gameRegion.left = GAME_REGION_LEFT;
-                gameRegion.top = GAME_REGION_TOP;
-                gameRegion.right = GAME_REGION_LEFT + GAME_REGION_WIDTH;
-                gameRegion.bottom = GAME_REGION_TOP + GAME_REGION_HEIGHT;
-                stageToSpellcardBackgroundAlpha = (stage->ticksSinceSpellcardStarted * 255) / 60;
-                ScreenEffect::DrawSquare(&gameRegion, stageToSpellcardBackgroundAlpha << 24);
-            }
         }
     }
     if (RUNNING <= stage->spellcardState)
     {
+        ZunRect gameRegion;
+        gameRegion.left = GAME_REGION_LEFT;
+        gameRegion.top = GAME_REGION_TOP;
+        gameRegion.right = GAME_REGION_LEFT + GAME_REGION_WIDTH;
+        gameRegion.bottom = GAME_REGION_TOP + GAME_REGION_HEIGHT;
+        // SDL redraws the fog-colored clear each frame, including after the transition.
+        const i32 alpha = std::clamp<i32>(stage->ticksSinceSpellcardStarted, 0, 60) * 255 / 60;
+        ScreenEffect::DrawSquare(&gameRegion, static_cast<u32>(alpha) << 24);
 #ifndef __3DS__
         if (stage->ticksSinceSpellcardStarted <= g_Supervisor.cfg.frameskipConfig)
         {
@@ -335,13 +332,13 @@ ZunResult Stage::AddedCallback(Stage *stage)
     interpInitial.y = 0;
     interpInitial.z = 1.0;
     stage->facingDirInterpInitial = interpInitial;
+    // Initialize the camera direction before its first draw.
     g_GameManager.stageCameraFacingDir = interpInitial;
 
     stage->facingDirInterpDuration = 1;
     facingDirTimer = &stage->facingDirInterpTimer;
     facingDirTimer->InitializeForPopup();
     stage->unpauseFlag = 0;
-
 
     g_AnmManager->SetFogColor(stage->skyFog.color);
     g_AnmManager->SetFogRange(stage->skyFog.nearPlane, stage->skyFog.farPlane);
@@ -578,6 +575,7 @@ ZunResult Stage::RenderObjects(i32 zLevel)
                         -(obj->position.y+instance->position.y-this->position.y),
                         obj->position.z+instance->position.z-this->position.z),ZunVec3(obj->size.x,obj->size.y,obj->size.z)))goto skip;
 #else
+            // Bounding-box corners, E at (0,0,0). Test order: C, G, E, A, D, H, F, B.
             //    ^
             //    |           A------B.
             //  y |           |`.    | `.

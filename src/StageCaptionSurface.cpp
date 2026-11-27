@@ -78,9 +78,23 @@ SDL_Surface* StageCaptionSurface::WhiteOutlined(SDL_Surface* source,int radius) 
     SDL_FreeSurface(output);return cropped;
 }
 
-SDL_Surface* StageCaptionSurface::RenderLine(TTF_Font* font,const char* text,SDL_Color color,int minimumHeight) {
+SDL_Surface* StageCaptionSurface::RenderLine(TTF_Font* font,const char* text,SDL_Color color,int minimumHeight,bool fixedBaseline) {
     auto* source=TTF_RenderUTF8_Blended(font,text,color);
     if(!source)return nullptr;
+    if(fixedBaseline) {
+        int top=TTF_FontAscent(font);
+        TTF_GlyphMetrics32(font,'M',nullptr,nullptr,nullptr,&top,nullptr);
+        const int extent=top+std::max(0,-TTF_FontDescent(font));
+        const int height=std::max(minimumHeight,extent+2);
+        auto* output=SDL_CreateRGBSurfaceWithFormat(0,source->w,height,32,SDL_PIXELFORMAT_RGBA32);
+        if(output) {
+            SDL_FillRect(output,nullptr,0);
+            SDL_Rect dst{0,(height-extent)/2+top-TTF_FontAscent(font),0,0};
+            SDL_SetSurfaceBlendMode(source,SDL_BLENDMODE_NONE);
+            SDL_BlitSurface(source,nullptr,output,&dst);
+        }
+        SDL_FreeSurface(source);return output;
+    }
     const auto ink=InkBounds(source);
     const int height=std::max(minimumHeight,ink.h+2);
     auto* output=SDL_CreateRGBSurfaceWithFormat(0,source->w,height,32,SDL_PIXELFORMAT_RGBA32);

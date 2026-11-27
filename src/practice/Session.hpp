@@ -34,6 +34,7 @@ struct Session {
     int stage=1,difficulty=1,shot=0,portion=1,frame=0,phase=0;
     std::string entry;
     bool running=false;
+    // Reopen the starting practice page after a section or Return to Practice.
     bool reopen=false;
     Mode previous=Mode::None;
     bool Custom() const {return mode==Mode::Custom;}

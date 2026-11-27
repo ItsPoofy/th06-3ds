@@ -20,14 +20,9 @@ SIZE = 48
 TOP = 9.5
 OUTLINE = 1.25
 OUTLINE_COLOR = np.array([3, 7, 7])
-# Red keeps 255. Green and blue rise from this value at the top of each letter
-# to 255 at GRADIENT of that letter's height, and the rest is white. The kanji
-# in 恋々音樂館 all span the line, so the original measures from the line. Latin
-# lowercase starts lower, so each letter takes its own top and height.
+# One red-to-white gradient spans the title's ink rows.
 RED_GB = 51
 GRADIENT = .4
-# A dot this close above a stem counts as part of that letter.
-DOT_GAP = 8
 # Teal glow by distance in pixels outside the outline.
 GLOW_DISTANCE = np.array([0, .5, 1, 2, 3, 4, 4.6])
 GLOW_ALPHA = np.array([235, 215, 155, 76, 40, 14, 0]) / 255
@@ -63,19 +58,11 @@ def styled(glyph):
     outer = ndimage.binary_dilation(glyph, structure=x*x + y*y <= radius*radius)
     def down(mask): return mask.reshape(height, SS, width, SS).mean((1, 3))
     glyph_cover, outer_cover = down(glyph), down(outer)
-    letters, count = ndimage.label(ndimage.binary_dilation(glyph, structure=np.ones((DOT_GAP*SS, 1))))
-    gb = np.full(glyph.shape, 255.)
-    y = np.arange(glyph.shape[0])[:, None] + .5
-    for index, area in enumerate(ndimage.find_objects(letters), 1):
-        letter = glyph & (letters == index)
-        rows = np.nonzero(letter.any(1))[0]
-        if not len(rows):
-            continue
-        top, bottom = rows.min(), rows.max() + 1
-        t = np.clip((y - top)/(GRADIENT*(bottom - top)), 0, 1)
-        gb = np.where(letter, RED_GB + (255 - RED_GB)*t, gb)
-    fill = np.stack([down(glyph*255.), down(glyph*gb), down(glyph*gb)], -1)
-    fill = fill/np.maximum(glyph_cover[..., None], 1e-4)
+    rows = np.nonzero(glyph.any(1))[0]
+    top, bottom = rows.min()/SS, (rows.max() + 1)/SS
+    t = np.clip((np.arange(height) + .5 - top)/(GRADIENT*(bottom - top)), 0, 1)
+    gb = RED_GB + (255 - RED_GB)*t
+    fill = np.stack([np.full(height, 255.), gb, gb], -1)[:, None, :]
     distance = (ndimage.distance_transform_edt(~outer)/SS)[SS//2::SS, SS//2::SS]
     glow_alpha = np.interp(distance, GLOW_DISTANCE, GLOW_ALPHA)
     glow_rgb = np.stack([np.interp(distance, GLOW_DISTANCE, GLOW_RGB[:, c]) for c in range(3)], -1)

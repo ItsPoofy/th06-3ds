@@ -14,6 +14,7 @@ bool StageAvailable(int stage);
 void Normalize();
 int PortionFrame(int stage,int portion);
 int SectionEndFrame(const Session& session);
+// Localized thprac section names and stage locations.
 const char* EntryName(const Entry& entry,bool japanese);
 const char* PhaseName(const Entry& entry,int phase,bool japanese);
 const char* StageName(int stage,bool japanese);

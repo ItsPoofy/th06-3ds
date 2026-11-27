@@ -12,13 +12,13 @@ original, so English uses that sheet unchanged.
 """
 from pathlib import Path
 import sys
+import math
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 
 sys.path.insert(0, str(Path(__file__).resolve().parent/'converter'))
 import menu_text_art as art
 from graphics import decode_texture
-import prepare_title_art
 import render_ui_label
 
 ROWS = ['View Easy Records', 'View Normal Records', 'View Hard Records',
@@ -96,6 +96,7 @@ BOARD_LABELS = {
     'shot0': ('Spirit Sign', '霊符', REIMU), 'shot1': ('Dream Sign', '夢符', REIMU),
     'shot2': ('Magic Sign', '魔符', MARISA), 'shot3': ('Love Sign', '恋符', MARISA),
     'spellcards': ('Spell Cards', '御札戦歴', None), 'quit': ('Quit', 'Quit', None),
+    'play': ('Play', '再生', None), 'back': ('Back', '戻る', None),
     'header0': ('Reimu - Spirit Sign', '霊夢 - 霊符', REIMU), 'header1': ('Reimu - Dream Sign', '霊夢 - 夢符', REIMU),
     'header2': ('Marisa - Magic Sign', '魔理沙 - 魔符', MARISA), 'header3': ('Marisa - Love Sign', '魔理沙 - 恋符', MARISA),
 }
@@ -105,38 +106,52 @@ HEADER_SCALE = 1.25
 ATLAS_WIDTH = 512
 
 
-def board_atlas(resources, pop, geometry, colors, title01):
-    """Write records-en.png, records-jp.png and assets/records_labels.hpp."""
+def board_label(text, pop, geometry, colors, title01, hue, scale):
     probe = np.nonzero(art.glyphs('EHN', pop, geometry['size'], 4, geometry['y'], 64, 32).any(1))[0]
     ink_top, ink_bottom = probe.min()/art.SS, (probe.max() + 1)/art.SS
+    style = colors if hue is None else art.tint(colors, hue, ink_top, ink_bottom)
+    profile = []
+    for y in range(math.floor(ink_top), math.ceil(ink_bottom)):
+        rgba = art.lookup(style, y, len(art.DISTANCES)-1, 1)
+        profile.append(tuple(round(float(c/max(rgba[3], 1e-6))) for c in rgba[:3]))
+    if hue is None:
+        for i, color in enumerate(profile):
+            blend = float(np.clip((i/max(1, len(profile)-1)-1/3)*6, 0, 1))
+            profile[i] = tuple(round(255*(1-blend)+channel*blend) for channel in color)
+    size = int(geometry['size']*scale)
+    image, face_top, _ = render_ui_label.render_label(text, pop, title01, size, 2, 0, profile=profile)
+    font = ImageFont.truetype(str(pop), size, layout_engine=ImageFont.Layout.BASIC)
+    top = math.ceil(geometry['y']*scale + font.getbbox(text)[1] - face_top)
+    tile = Image.new('RGBA', (image.width, round(32*scale)))
+    tile.alpha_composite(image, (0, top))
+    return tile
+
+
+def section_caption(text, pop, title01):
+    image, _, _ = render_ui_label.render_label(text, pop, title01, 22, 1, 0, profile=[(255, 255, 255)])
+    font = ImageFont.truetype(str(pop), 22, layout_engine=ImageFont.Layout.BASIC)
+    offset = font.getbbox(text, stroke_width=1)[1] - font.getbbox('DIFFICULTY', stroke_width=1)[1]
+    if offset:
+        aligned = Image.new('RGBA', (image.width, image.height+abs(offset)))
+        aligned.alpha_composite(image, (0, max(0, offset)))
+        return aligned
+    return image
+
+
+def board_atlas(resources, pop, geometry, colors, title01):
+    """Write records-en.png, records-jp.png and assets/records_labels.hpp."""
     def label(text, hue, scale):
-        glyph = art.glyphs(text, pop, geometry['size'], 4, geometry['y'], 512, 32)
-        style = colors if hue is None else art.tint(colors, hue, ink_top, ink_bottom)
-        image = art.render(glyph, geometry['outline'], style)
-        box = image.getbbox()
-        # Trim the sides only, so every label keeps the same baseline.
-        image = image.crop((box[0], 0, box[2], image.height))
-        if scale != 1:
-            image = image.resize((round(image.width*scale), round(image.height*scale)), Image.Resampling.LANCZOS)
-        return image
+        return board_label(text, pop, geometry, colors, title01, hue, scale)
     entries = []
     for name, (english, japanese, hue) in BOARD_LABELS.items():
         scale = HEADER_SCALE if name.startswith('header') else BOTTOM_SCALE
         entries.append((name, label(english, hue, scale), label(japanese, hue, scale)))
         if name.startswith('difficulty'):
             entries.append(('small-' + name, label(english, hue, HEADER_SCALE), label(japanese, hue, HEADER_SCALE)))
-    titles = []
-    for language, text in (('en', 'Dreamy Records'), ('jp', '夢の記録')):
-        title = prepare_title_art.title(text, pop, 768, 64, 752, left=7)
-        bounds = title.getbbox()
-        title = title.crop((bounds[0], 0, bounds[2], title.height))
-        subtitle, _, _ = render_ui_label.render_label('Result of Score and Spell Card', pop,
-            title01, 18, 1, 2)
-        title.save(resources/f'records-title-{language}.png')
-        subtitle.save(resources/f'records-subtitle-{language}.png')
-        titles.append((title, subtitle))
-    entries.append(('records-title', titles[0][0], titles[1][0]))
-    entries.append(('records-subtitle', titles[0][1], titles[1][1]))
+    for name, text in (('caption-difficulty', 'DIFFICULTY'), ('caption-character', 'CHARACTER'),
+                       ('caption-shot', 'SHOT TYPE'), ('caption-stage', 'STAGE')):
+        image = section_caption(text, pop, title01)
+        entries.append((name, image, image.copy()))
     # Shelf packing. Both languages share each slot, sized to the wider label.
     slots, x, y, shelf = [], 1, 1, 0
     for name, english, japanese in entries:
@@ -163,6 +178,16 @@ def board_atlas(resources, pop, geometry, colors, title01):
     (Path(__file__).resolve().parent.parent/'assets/records_labels.hpp').write_text('\n'.join(lines), encoding='utf-8')
 
 
+def board_style(assets, pop):
+    original = decode_texture(Path(assets)/'textures/result00.anm.bin')
+    rows = [sprite(original, 0, 48 + 32*index, 256, 32) for index in range(5)]
+    colors = sum(art.measure(row) for row in rows)
+    normal = np.asarray(rows[1])[..., 3] >= art.SOLID
+    end = next(c for c in range(256) if normal[:, :c].any() and not normal[:, c:c + 3].any())
+    geometry = art.fit(rows[1].crop((0, 0, end, 32)), 'Normal', pop, ROW_SIZES)
+    return geometry, colors
+
+
 def prepare(resources, assets, pop):
     resources, assets = Path(resources), Path(assets)
     original = decode_texture(assets/'textures/result00.anm.bin')
@@ -174,11 +199,7 @@ def prepare(resources, assets, pop):
     place(heading(sprite(original, 0, 0, 256, 48), pop), 0, 0)
     # The rows share one style. Pool their colors, and take the size and
     # baseline from the Latin "Normal", since the English rows are all Latin.
-    rows = [sprite(original, 0, 48 + 32*index, 256, 32) for index in range(5)]
-    colors = sum(art.measure(row) for row in rows)
-    normal = np.asarray(rows[1])[..., 3] >= art.SOLID
-    end = next(c for c in range(256) if normal[:, :c].any() and not normal[:, c:c + 3].any())
-    geometry = art.fit(rows[1].crop((0, 0, end, 32)), 'Normal', pop, ROW_SIZES)
+    geometry, colors = board_style(assets, pop)
     board_atlas(resources, pop, geometry, colors, assets/'data/title01.png')
     def row(text, width):
         glyph = art.glyphs(text, pop, geometry['size'], geometry['x'], geometry['y'], width, 32)

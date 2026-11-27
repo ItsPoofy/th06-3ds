@@ -1036,6 +1036,7 @@ f32 Player::AngleToPlayer(const ZunVec3 *pos) const
     relY = this->positionCenter.y - pos->y;
     if (relY == 0.0f && relX == 0.0f)
     {
+        // Angles increase clockwise from the positive X axis.
         return RADIANS(90.0f);
     }
 

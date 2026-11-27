@@ -673,6 +673,7 @@ ChainCallbackResult EnemyManager::OnUpdate(EnemyManager *mgr)
             if (0 >= curEnemy->life && curEnemy->flags.unk6 != 0)
             {
 #ifdef __3DS__
+                // Update the HUD on defeat, before the ECL outro reaches SPELLCARDEND.
                 CtrBossCounters::EndSpell(curEnemy);
 #endif
                 curEnemy->lifeCallbackThreshold = -1;

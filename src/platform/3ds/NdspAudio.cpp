@@ -35,6 +35,7 @@ std::atomic_bool streamActive=false,fadeActive=false;
 std::atomic_int musicVolume=100;
 void OnAudioFrame(void*) {
  CtrSfx::OnAudioFrame();
+ // NDSP callback: signal the worker without file I/O or the stream lock.
  if(!streamActive.load(std::memory_order_acquire))return;
  if(fadeActive.load(std::memory_order_relaxed)) {LightEvent_Signal(&streamEvent);return;}
  for(const auto& slot:slots)
@@ -122,6 +123,7 @@ bool CtrAudio::Initialize() {
 void CtrAudio::Shutdown() {
  if(!initialized)return;
  CtrRuntime::Log("Audio shutdown: stopping workers");
+ // DSP cancellation stops frame progress. Keep queued buffers alive through ndspExit.
  CtrSfx::StopWorker();
  streamActive=false;quit=true;LightEvent_Signal(&streamEvent);
  if(worker)SDL_WaitThread(worker,nullptr);worker=nullptr;

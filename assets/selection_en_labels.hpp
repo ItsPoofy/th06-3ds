@@ -91,5 +91,6 @@ inline constexpr CtrSelectionAssets::Label labels[]={
 {"hud-digit9",1,971,16,16},
 {"name-bar",497,823,14,16},
 {"player-name-bar",497,853,14,16},
+{"hud-rank",401,65,48,16},
 };
 }

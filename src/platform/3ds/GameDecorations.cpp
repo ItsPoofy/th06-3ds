@@ -52,6 +52,7 @@ void Name(int index,bool right,unsigned alpha,float slide=0) {
     char name[24];snprintf(name,sizeof(name),"name%d",index);
     const float width=CtrLayout::Left();
     const float x=(right?400.f-width:0.f)+slide;
+    // Overlay the translucent front.anm gradient on the lower portrait.
     const float height=HasTitle(index)?CtrLayout::NameCardHeight:36.f,y=240-height;
     CtrSelectionArt::DrawStretched(right?"name-bar":"player-name-bar",x,y,width,height,C2D_Color32(255,255,255,alpha));
     CtrSelectionArt::Draw(name,x+width*.5f,y,C2D_Color32(255,255,255,alpha),true);
@@ -80,9 +81,11 @@ void Portrait(int index,bool right,unsigned alpha) {
     auto* gpu=static_cast<CtrRenderer*>(g_GfxBackend)->TextureImage(g_AnmManager->textures[sprite.sourceFileIndex].handle);
     if(!gpu)return;
     Tex3DS_SubTexture sub{u16(sprite.widthPx),u16(sprite.heightPx),sprite.uvStart.x,1-sprite.uvStart.y,sprite.uvEnd.x,1-sprite.uvEnd.y};
+    // Fit the body frame and crop wide portrait wings.
     const float bodyWidth=std::min(sprite.widthPx,sprite.heightPx*.5f);
     const float scale=std::min(CtrLayout::Left()/bodyWidth,190.f/sprite.heightPx);
     const float w=sprite.widthPx*scale,h=sprite.heightPx*scale;
+    // Keep sidebar portraits fixed during dialogue animations.
     const float sideLeft=right?400-CtrLayout::Left():0;
     const float x=sideLeft+(CtrLayout::Left()-w)*.5f,y=240-h;
     CtrNative::DrawImage({gpu,&sub},x,y,C2D_Color32(255,255,255,alpha),scale,scale);
@@ -102,6 +105,7 @@ void CtrDecorations::BeginStage(int nextStage) {
     releasingDialogue=false;faceOpacity[0]=faceOpacity[1]=battleOpacity;
     dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
     for(auto& vm:dialogueFaces)vm.flags.isVisible=0;
+    // Read the current face textures so dialogue replacements take effect.
     CtrFocusEffect::BeginStage();
 }
 int CtrDecorations::CurrentBossName(){return bossIdentity>=0?bossIdentity:BossName();}
@@ -110,16 +114,20 @@ void CtrDecorations::SelectPortrait(int portrait) {
     current=portrait;
 }
 void CtrDecorations::PracticeBoss(bool midboss) {
+    // Stages 6/Extra: midboss face slots 0-1, end boss 2-3. Stages 2/4 have no midboss portrait.
     mainBossSeen=!midboss;miniboss=midboss && (stage==2 || stage==4);
     current=!midboss && stage>=6?2:0;
 }
 void CtrDecorations::PlayerSpellcard(int sprite) {bombFace=sprite-ANM_SPRITE_FACE_CHARA_START;}
 void CtrDecorations::EndPlayerSpellcard() {bombFace=-1;}
 void CtrDecorations::BossSpellcard(int sprite) {if(sprite>=0 && sprite<4)bossSpellFace=sprite;}
-void CtrDecorations::EndBossSpellcard() {bossSpellFace=-1;}
+void CtrDecorations::EndBossSpellcard() {
+    if(bossSpellFace>=0)current=bossSpellFace;
+    bossSpellFace=-1;
+}
 void CtrDecorations::BeginDialogue() {
     releasingDialogue=false;dialogueSpeaker=-1;dialogueOpacity[0]=dialogueOpacity[1]=battleOpacity;
-    bossSpellFace=-1;
+    EndBossSpellcard();
     dialogue=true;
     for(auto& portrait:dialogueFaces)portrait={};
 }
@@ -144,6 +152,7 @@ void CtrDecorations::UpdateDialogue(const GuiMsgVm& message) {
 }
 void CtrDecorations::PortraitInterrupt(int side,int interrupt) {
     if(side<0 || side>1)return;
+    // ANM interrupts 1/3 speak, 4 listen, and 2/5 leave. ECL resume is not dialogue end.
     if(interrupt==1 || interrupt==3 || interrupt==4) {
         releasingDialogue=false;dialogueOpacity[side]=interrupt==4?128:255;
     } else if(interrupt==2 || interrupt==5)dialogueOpacity[side]=battleOpacity;
@@ -152,7 +161,7 @@ void CtrDecorations::EndDialogue() {releasingDialogue=true;dialogueSpeaker=-1;}
 void CtrDecorations::UpdateBoss(bool present,int portrait) {
     CtrFocusEffect::Update();
     CtrBossCounters::Observe(present);
-    SelectPortrait(portrait);
+    if(dialogue)SelectPortrait(portrait);
     if(present && (fade==0 || mainBossSeen))miniboss=!mainBossSeen && (stage==2 || stage==4);
     const bool shown=present || CtrBossPresentation::Visible() || (dialogue && dialogueFaces[1].sprite && dialogueFaces[1].flags.isVisible);
     fade=std::clamp(fade+(shown?2:-3),0,60);

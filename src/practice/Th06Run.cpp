@@ -55,6 +55,7 @@ bool PrepareSub(int sub) {
     const bool result=g_EclManager.RunEcl(actor)==ZUN_SUCCESS;
     preparing=false;Settle(*actor);return result;
 }
+// Extra's midboss is Patchouli. Load Remilia/Flandre assets only for end bosses.
 void BossAssets() {
     if(!selected->midboss && Current().stage>=6)g_Gui.PrepareBossAnimations(0);
 }
@@ -88,6 +89,7 @@ bool EnterSelected() {
     actor->runInterrupt=-1;actor->shootInterval=0;
     g_GameManager.isTimeStopped=false;
     if(g_EclManager.RunEcl(actor)!=ZUN_SUCCESS)return false;
+    // Advance the native clock for later survival-card phases.
     if(selected->spell==62 && Current().phase>0) {
         seekTime=Current().phase==1?1976:4536;
         visited.clear();preparing=true;
@@ -184,6 +186,7 @@ void Practice::Th06Run::Tick() {
 }
 void Practice::Th06Run::Spawned(Enemy* enemy,int sub) {
     if(!waiting || actor || sub!=actorStart.sub)return;
+    // Track the entrance actor before BOSSSET so early dialogue exit can resume it.
     actor=enemy;g_EnemyManager.bosses[0]=enemy;
 }
 bool Practice::Th06Run::Preparing(){return preparing;}
@@ -192,7 +195,7 @@ bool Practice::Th06Run::AttackEnded(Enemy* enemy,bool spell) {
     if(!session.running || !sectionReady || preparing || waiting || enemy!=actor || !selected ||
        (selected->spell>=0)!=spell || !session.options.stopAfterSection)return false;
     if(Completion::Active())return true;
-    Completion::Begin(session.options.repeat,spell?Completion::Outcome::SpellCleared:Completion::Outcome::SectionCleared);
+    Completion::Begin(session.options.repeat);
     enemy->lifeCallbackThreshold=enemy->timerCallbackThreshold=-1;
     g_BulletManager.DespawnBullets(12800,false);
     return true;
@@ -240,6 +243,7 @@ void Practice::Th06Run::BeforeTimeline() {
 bool Practice::Th06Run::ContinueOutro(Enemy* enemy,const EclRawInstr* instruction) {
     if(!Completion::Active())return true;
     if(enemy!=actor || outroBlocked || Completion::CountingDown())return false;
+    // Finish defeat effects before another attack sets health or starts a spell.
     if(instruction->opCode==ECL_OPCODE_SPELLCARDSTART ||
        (instruction->opCode==ECL_OPCODE_ENEMYLIFESET && instruction->args.setInt>0)) {
         outroBlocked=true;enemy->flags.unk6=0;Settle(*enemy);return false;

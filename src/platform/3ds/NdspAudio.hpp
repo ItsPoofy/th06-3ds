@@ -10,5 +10,6 @@ void SeekMusic(float fraction);
 // Holds the playing track in place. Seeking while paused keeps it paused.
 void PauseMusic(bool pause);
 bool MusicPaused();
+// A non-null path also checks which track is playing.
 bool MusicPlaying(const char* path=nullptr);
 }

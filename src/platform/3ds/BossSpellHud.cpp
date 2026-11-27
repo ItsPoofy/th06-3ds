@@ -44,6 +44,7 @@ void Glyph(int sx,int sy,int w,int h,float x,float y,float scale,ZunColor color)
     SetGlyphColor(color);
     GlyphVertices(sx,sy,w,h,x,y,scale);
 }
+// Outlined glyph ink bounds within 22px atlas cells.
 struct Ink {int left,right;};
 constexpr Ink SmallInk[12]={{0,22},{5,17},{0,22},{1,21},{0,22},{1,21},{1,22},{1,22},{1,21},{1,22},{1,11},{0,13}};
 constexpr int OutlineOverlap=3;
@@ -62,6 +63,7 @@ void NumberGlyphs(const char* text,float x,float y) {
         x+=Advance(index);
     }
 }
+// Downscaling thins the atlas outline. Digits need a wider black copy than labels.
 constexpr float LabelOutline=.45f,DigitOutline=1.3f;
 template<class Draw> void Outlined(ZunColor color,float x,float y,float outline,Draw draw) {
     SetGlyphColor(color&0xff000000);
@@ -112,6 +114,7 @@ void CtrBossSpellHud::End(){if(timeline.active)Snapshot();timeline.End();}
 void CtrBossSpellHud::Tick() {
     if(g_GameManager.isInGameMenu || g_GameManager.isTimeStopped)return;
     if(timeline.active && g_EnemyManager.spellcardInfo.isActive)Snapshot();
+    // ECL awards captures after requesting the exit. Keep outgoing history current.
     else if(timeline.exitAge<30)ReadHistory();
     timeline.Tick(g_Supervisor.FramerateMultiplier());
 }

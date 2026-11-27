@@ -11,6 +11,8 @@
 namespace {
 CtrAssets::PackedTexture ring,dot;
 constexpr float Pi=3.1415927f;
+// New Classic front.anm scripts 33/34, after their opening animation.
+constexpr float RingVelocity[]={-0.0423598811f,0.0323598795f};
 float frames=0;
 float opacity=0;
 bool Available() {
@@ -35,8 +37,8 @@ void CtrFocusEffect::Draw(C3D_RenderTarget* top,C3D_RenderTarget* bottom) {
     if(!ring.ready || !Available() || opacity<=0)return;
     const float fieldScale=CtrLayout::Scale();
     const float x=g_Player.positionCenter.x*fieldScale,y=g_Player.positionCenter.y*fieldScale+CtrLayout::Offset();
-    // TH20 effect.anm scripts 19/18 rotate at +3/-6 degrees per game frame.
-    const float angles[]={std::fmod(frames,120.f)*Pi/60.f,-std::fmod(frames,60.f)*Pi/30.f};
+    const float angles[]={std::fmod(frames*RingVelocity[0],2*Pi),
+                          std::fmod(frames*RingVelocity[1],2*Pi)};
     const auto color=C2D_Color32(255,255,255,unsigned(255*opacity*opacity*(3-2*opacity)));
     auto draw=[&](C3D_RenderTarget* target,bool upper) {
         const float fieldTop=CtrLayout::Offset()-(upper?0:240);

@@ -229,6 +229,7 @@ ChainCallbackResult Gui::OnDraw(Gui *gui)
 
 #ifdef __3DS__
     g_AsciiManager.isGui=0;
+    // GUI panels and health rings use the full logical viewport.
     g_Supervisor.viewport.x=g_Supervisor.viewport.y=0;
     g_Supervisor.viewport.width=GAME_WINDOW_WIDTH;g_Supervisor.viewport.height=GAME_WINDOW_HEIGHT;
     g_Supervisor.viewport.Set();
@@ -371,6 +372,7 @@ ZunResult Gui::ActualAddedCallback()
         {
             return ZUN_ERROR;
         }
+        // Keep the outgoing menu visible while the first stage loads.
         this->impl->loadingScreenSprite.activeSpriteIndex = -1;
         switch (g_GameManager.character)
         {
@@ -782,10 +784,17 @@ ZunResult GuiImpl::RunMsg()
 #endif
             this->msg.dialogueLines[args->text.textLine].fontWidth =
                 this->msg.dialogueLines[args->text.textLine].fontHeight = this->msg.fontSize;
+#ifdef __3DS__
+            TextHelper::DialogueLine(&this->msg.dialogueLines[args->text.textLine],args->text.text,
+                                        this->msg.textColorsA[args->text.textColor],
+                                        this->msg.textColorsB[args->text.textColor]);
+#else
             g_AnmManager->DrawVmTextFmt(&this->msg.dialogueLines[args->text.textLine],
                                         this->msg.textColorsA[args->text.textColor],
                                         this->msg.textColorsB[args->text.textColor], "%s", args->text.text);
+#endif
 #ifdef __3DS__
+            // Typewriter reveal replaces the whole-line fade.
             this->msg.dialogueLines[args->text.textLine].alphaInterpEndTime=0;
             this->msg.dialogueLines[args->text.textLine].color=COLOR_SET_ALPHA2(
                 this->msg.dialogueLines[args->text.textLine].color,255);
@@ -973,16 +982,13 @@ ZunResult GuiImpl::DrawDialogue() const
         ZunVec4(g_GameManager.arcadeRegionTopLeftPos.x + (g_GameManager.arcadeRegionSize.x - 256.0f) / 2.0f - 16.0f,
                 384.0f, 0.0f, 1.0f);
 
-
     vertices[1].position = ZunVec4(g_GameManager.arcadeRegionTopLeftPos.x +
                                        (g_GameManager.arcadeRegionSize.x - 256.0f) / 2.0f + 256.0f + 16.0f,
                                    384.0f, 0.0f, 1.0f),
 
-
         vertices[2].position =
             ZunVec4(g_GameManager.arcadeRegionTopLeftPos.x + (g_GameManager.arcadeRegionSize.x - 256.0f) / 2.0f - 16.0f,
                     384.0f + dialogueBoxHeight, 0.0f, 1.0f),
-
 
         vertices[3].position = ZunVec4(g_GameManager.arcadeRegionTopLeftPos.x +
                                            (g_GameManager.arcadeRegionSize.x - 256.0f) / 2.0f + 256.0f + 16.0f,
@@ -991,6 +997,7 @@ ZunResult GuiImpl::DrawDialogue() const
     vertices[0].diffuse = vertices[1].diffuse = ColorData(0xd0000000);
     vertices[2].diffuse = vertices[3].diffuse = ColorData(0x90000000);
 #ifdef __3DS__
+    // Match the side cards and keep the panel open across dialogue lines.
     const float top=CtrPlayfieldText::DialogueTop();
     vertices[0].position=ZunVec4(32,top,0,1);vertices[1].position=ZunVec4(416,top,0,1);
     vertices[2].position=ZunVec4(32,464,0,1);vertices[3].position=ZunVec4(416,464,0,1);
@@ -1004,6 +1011,7 @@ ZunResult GuiImpl::DrawDialogue() const
     }
 #endif
 
+    // Reset additive blending before drawing black panels.
     AnmVm panelState{};
     panelState.flags.blendMode=AnmVmBlendMode_InvSrcAlpha;
     panelState.flags.zWriteDisable=1;
@@ -1163,6 +1171,7 @@ void Gui::UpdateStageElements()
         this->impl->loadingScreenSprite.activeSpriteIndex = -1;
     }
 #ifdef __3DS__
+    // Overlapping bonus notices share their departure time.
     if(this->impl->bonusScore.isShown && this->impl->spellCardBonus.isShown &&
        std::max(this->impl->bonusScore.timer.current,this->impl->spellCardBonus.timer.current)>=CtrPlayfieldText::BonusDuration) {
         this->impl->bonusScore.isShown=this->impl->spellCardBonus.isShown=0;
@@ -1355,6 +1364,7 @@ void Gui::DrawGameScene()
     g_Supervisor.viewport.Set();
 
 #ifdef __3DS__
+    // Split mode crops the original HUD rows.
     if(!CtrLayout::Single()) {
 #endif
     vm = &this->impl->vms[6];
@@ -1476,7 +1486,6 @@ void Gui::DrawGameScene()
             vertices[0].diffuse = vertices[2].diffuse = ColorData(0xe0e0e0ff);
             vertices[1].diffuse = vertices[3].diffuse = ColorData(0x80e0e0ff);
 
-
             g_AnmManager->SetColorOp(COMPONENT_ALPHA, COLOR_OP_REPLACE);
             g_AnmManager->SetColorOp(COMPONENT_RGB, COLOR_OP_REPLACE);
 
@@ -1560,6 +1569,7 @@ void Gui::DrawGameScene()
 void Gui::DrawStageElements() const
 {
 #ifdef __3DS__
+    // Reset the stage viewport before drawing absolute GUI coordinates.
     g_Supervisor.viewport.x=g_Supervisor.viewport.y=0;
     g_Supervisor.viewport.width=GAME_WINDOW_WIDTH;g_Supervisor.viewport.height=GAME_WINDOW_HEIGHT;
     g_Supervisor.viewport.Set();

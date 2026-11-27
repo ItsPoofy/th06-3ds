@@ -325,6 +325,7 @@ struct EclRawInstr
     LE<i16> opCode;
     LE<i16> offsetToNext;
     u8 unk_8;
+    // Difficulty bits: 1 skips the instruction, 0 runs it.
     u8 skipForDifficulty;
     u8 unk_a;
     u8 unk_b;

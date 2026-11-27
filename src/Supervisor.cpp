@@ -24,6 +24,7 @@
 #ifdef __3DS__
 #include "platform/3ds/CtrRenderer.hpp"
 #include "platform/3ds/GameLoop.hpp"
+#include "platform/3ds/ReplayFlow.hpp"
 #include "platform/3ds/PauseMenu.hpp"
 #include "platform/3ds/NdspAudio.hpp"
 #include "practice/Session.hpp"
@@ -84,10 +85,14 @@ ChainCallbackResult Supervisor::OnUpdate(Supervisor *s)
         g_NumOfFramesInputsWereHeld = 0;
     }
 
+#ifdef __3DS__
+    if(CtrReplayFlow::DeferExit(*s))return CHAIN_CALLBACK_RESULT_BREAK;
+#endif
     const bool changedScene=s->wantedState!=s->curState;
     if (changedScene)
     {
 #ifdef __3DS__
+        // Keep the outgoing displays intact until the incoming scene is drawn.
         g_AnmManager->FlushVertexBuffer();
         GameWindow::Present();
         static_cast<CtrRenderer*>(g_GfxBackend)->ShowLoadingScreen();
@@ -113,6 +118,7 @@ ChainCallbackResult Supervisor::OnUpdate(Supervisor *s)
                 {
                     return CHAIN_CALLBACK_RESULT_EXIT_GAME_SUCCESS;
                 }
+                // Remove rejected-replay gameplay chains before installing the menu.
                 if (s->curState == SUPERVISOR_STATE_MAINMENU)
                 {
                     goto RETURN_TO_MENU_FROM_GAME;
@@ -283,7 +289,6 @@ ChainCallbackResult Supervisor::OnDraw(Supervisor *s)
     return CHAIN_CALLBACK_RESULT_CONTINUE;
 }
 
-
 ZunResult Supervisor::RegisterChain()
 {
     ChainElem *chain;
@@ -323,7 +328,6 @@ ZunResult Supervisor::AddedCallback(Supervisor *s)
     {
         return ZUN_ERROR;
     }
-
 
     g_AnmManager->LoadSurface(0, "data/title/th06logo.jpg");
     g_AnmManager->CopySurfaceToBackBuffer(0, 0, 0, 0, 0);
@@ -397,7 +401,6 @@ ZunResult Supervisor::SetupDInput(Supervisor *supervisor)
 
     return ZUN_SUCCESS;
 }
-
 
 ZunResult Supervisor::DeletedCallback(Supervisor *s)
 {
@@ -500,6 +503,7 @@ void Supervisor::ReleasePbg3(i32 pbg3FileIdx)
         return;
     }
 
+    // The archive destructor releases its buffers.
     this->pbg3Archives[pbg3FileIdx]->Release();
     delete this->pbg3Archives[pbg3FileIdx];
     this->pbg3Archives[pbg3FileIdx] = NULL;

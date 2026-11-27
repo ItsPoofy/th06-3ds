@@ -275,7 +275,7 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
     // Fit at the largest caption draw scale, preserving the same font in both layouts.
     const int captionWidth=2*wrapWidth-(outlined?8:0);
     SDL_Surface* regularText=balanceSeparator?StageCaptionSurface::Render(g_Font,convertedText,sdlTextColor,twoRows,captionWidth,centered,rightAligned):
-        (fittedLine?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlTextColor,lineHeight):
+        (fittedLine?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlTextColor,lineHeight,role==FontRole::Dialogue):
             TTF_RenderUTF8_Blended(g_Font,convertedText,sdlTextColor));
     if(role==FontRole::SpellTitle)regularText=CondenseSpellLine(regularText,captionWidth);
     if(outlined && regularText) {
@@ -312,7 +312,7 @@ void TextHelper::RenderTextToTexture(i32 xPos, i32 yPos, i32 spriteWidth, i32 sp
         sdlShadowColor.g = (shadowColor >> 8) & 0xFF;
         sdlShadowColor.r = shadowColor & 0xFF;
 
-        shadowText = balanceSeparator?StageCaptionSurface::Render(g_Font,convertedText,sdlShadowColor,twoRows,captionWidth,centered,rightAligned):(fittedLine?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlShadowColor,lineHeight):TTF_RenderUTF8_Blended(g_Font, convertedText, sdlShadowColor));
+        shadowText = balanceSeparator?StageCaptionSurface::Render(g_Font,convertedText,sdlShadowColor,twoRows,captionWidth,centered,rightAligned):(fittedLine?StageCaptionSurface::RenderLine(g_Font,convertedText,sdlShadowColor,lineHeight,role==FontRole::Dialogue):TTF_RenderUTF8_Blended(g_Font, convertedText, sdlShadowColor));
         if(role==FontRole::SpellTitle)shadowText=CondenseSpellLine(shadowText,captionWidth);
 
         if (shadowText != NULL)
@@ -446,6 +446,15 @@ int TextHelper::PrefixWidths(const char* text,int fontHeight,float* widths,int c
 }
 
 #ifdef __3DS__
+void TextHelper::DialogueLine(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow) {
+    auto& texture=g_AnmManager->textures[vm->sprite->sourceFileIndex];
+    const int size=vm->fontWidth?vm->fontWidth:15;
+    int height=0;
+    RenderTextToTexture(vm->sprite->startPixelInclusive.x,vm->sprite->startPixelInclusive.y,
+        vm->sprite->textureWidth,vm->sprite->textureHeight,size,size,color,shadow,text,&texture,
+        false,&height,230,false,true,false,false,FontRole::Dialogue);
+    vm->ctrTextStart=0;vm->ctrTextWidth=Measure(text,size);vm->ctrTextHeight=height;vm->flags.isVisible=true;
+}
 void TextHelper::StageCaption(AnmVm* vm,const char* text,ZunColor color,ZunColor shadow) {
     Wrapped(vm,text,color,shadow,230,true,true);
 }

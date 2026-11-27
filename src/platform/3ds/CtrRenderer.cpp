@@ -1,4 +1,6 @@
 #include "RecordsPanel.hpp"
+#include "ReplayPanel.hpp"
+#include "TiledTexture.hpp"
 #include "PracticeReturn.hpp"
 #include "MenuCanvas.hpp"
 #include "CtrRenderer.hpp"
@@ -24,12 +26,7 @@
 #include <cmath>
 
 namespace {
-// PICA textures use 8x8 Morton tiles and ABGR bytes.
-u32 TexelOffset(u32 x,u32 y,u32 width) {
-    u32 m=0;
-    for(u32 b=0;b<3;b++) m|=((x>>b)&1)<<(2*b) | ((y>>b)&1)<<(2*b+1);
-    return ((y>>3)*(width>>3)+(x>>3))*64+m;
-}
+using CtrTexture::TexelOffset;
 u32 ABGR(ZunColor c) { return (c&0xff00ff00)|((c&255)<<16)|((c>>16)&255); }
 void NativeBlend(bool premultiplied=false) {
     C3D_AlphaBlend(GPU_BLEND_ADD,GPU_BLEND_ADD,premultiplied?GPU_ONE:GPU_SRC_ALPHA,
@@ -73,6 +70,7 @@ bool CtrRenderer::Start() {
     CtrBossSpellHud::Initialize(*this);
     CtrSpellTitleDecoration::Initialize(*this);
     for(auto& m:matrices) m.Identity();
+    // Submit geometry before citro3d's suspend hook drains the GPU and disables VBlank.
     aptHook(&lifecycleHook,OnLifecycle,this);lifecycleHooked=true;
     BeginFrame();
     CtrRuntime::Log("Renderer initialized");
@@ -93,6 +91,7 @@ void CtrRenderer::PrepareForExit() {
     exiting=true;
     if(frameOpen) {FlushVertices();EndSegment();}
     if(started && !suspended) {
+        // Cancellation can disable VBlank permanently. Wait for GPU reads directly.
         if(C3D_FrameBegin(0))C3D_FrameEnd(0);
     }
 }
@@ -158,6 +157,7 @@ void CtrRenderer::SetViewport(i32 x,i32 y,i32 w,i32 h) {
     if(drawingMenuLayer) {x/=2;y/=2;w/=2;h/=2;}
     else if(CtrMenuCanvas::FullWidth() && x==0 && w==640 && h==480)w=CtrMenuCanvas::Width;
     viewport[0]=x; viewport[1]=y; viewport[2]=w; viewport[3]=h;
+    // Refresh the projection when switching logical viewport widths.
     if(g_AnmManager && g_AnmManager->projectionMode==PROJECTION_MODE_ORTHOGRAPHIC)
         g_AnmManager->SetTransformMatrix(MATRIX_PROJECTION,inverseViewportMatrix());
 }
@@ -177,6 +177,7 @@ void CtrRenderer::FinishTextureReads() {
 void CtrRenderer::SynchronizeAssets() {
     if(exiting || suspended)return;
     if(sceneComplete)SwapBuffers();
+    // FrameBegin drains GPU reads before an atlas is freed.
     C2D_Flush();
     if(frameOpen)EndSegment();
     C3D_FrameBegin(0);frameOpen=true;
@@ -192,6 +193,7 @@ void CtrRenderer::UpdateTextRows(i32 y,i32 width,i32 height,const u8* rgba) {
     C3D_TexFlush(&bound->gpu);
 }
 GfxTextureHandle CtrRenderer::LoadPreparedTexture(const char* path,u32& width,u32& height) {
+    // Present the captured scene before asset loading replaces its textures.
     if(sceneComplete) SwapBuffers();
     const auto filename=CtrAssets::PackedPath("textures",(std::string(path)+".bin").c_str());
     FILE* file=fopen(filename.c_str(),"rb");
@@ -224,6 +226,7 @@ void CtrRenderer::ApplyFog() {
         const auto& p=matrices[MATRIX_PROJECTION];
         const float key[]={p.m[2][3],p.m[2][2],p.m[3][2],p.m[3][3],depthNear,depthFar,fogNear,fogFar};
         FogTable* table=nullptr;
+        // Reuse fog tables when only the projection changes.
         for(auto& candidate:fogTables)if(candidate.valid && std::memcmp(candidate.key,key,sizeof(key))==0) {
             table=&candidate;break;
         }
@@ -258,7 +261,9 @@ void CtrRenderer::Clear(u32 bits) {
     if(!frameOpen)return;
     const u32 depth=u32(std::clamp(clearDepth,0.0f,1.0f)*0xffffff);
     if(SceneHoldsFill(bits,depth))return;
+    // libctru retains GX entries until FrameBegin. Reserve room for draws and transfers.
     if(queuedCommands>=16)FinishTextureReads();
+    // Submit pending draws before GX memory fills can overtake them.
     if(vertexCursor) {
         FlushVertices();
         SplitSegment();
@@ -392,6 +397,7 @@ void CtrRenderer::DrawVertices(PrimitiveType type,i32 first,i32 count,bool quads
         C3D_FVUnifSet(GPU_VERTEX_SHADER,textureUniform+1,-m.m[0][1],-m.m[1][1],-m.m[2][1],1-m.m[3][1]);
         textureMatrixDirty=false;
     }
+    // Submit packed colors directly, preserving the engine's RGB channel order.
     const u32 rgba=(factor&0xff00ff00u)|((factor&255)<<16)|((factor>>16)&255);
     Vertex* out=vertices+vertexCursor;
     if(!direct)for(int n=0;n<count;n++) {
@@ -405,6 +411,7 @@ void CtrRenderer::DrawVertices(PrimitiveType type,i32 first,i32 count,bool quads
         else out[n].diffuse=rgba;
     }
     ApplyFog();
+    // Keep GL's 0=near, 1=far depth convention after clipping.
     if(!applied.valid || std::memcmp(applied.viewport,viewport,sizeof(viewport))!=0) {
         C3D_SetViewport(viewport[0],viewport[1],viewport[2],viewport[3]);
         // SetViewport disables scissoring, so restore it with the viewport.
@@ -448,6 +455,7 @@ void CtrRenderer::FlushVertices() {
     if(vertexCursor) GSPGPU_FlushDataCache(vertices,sizeof(Vertex)*vertexCursor);
 }
 void CtrRenderer::EndSegment() {
+    // Flush citro3d's cache, including split lists and citro2d buffers.
     C3D_FrameEnd(0);frameOpen=false;
 }
 void CtrRenderer::SplitSegment() {
@@ -456,6 +464,7 @@ void CtrRenderer::SplitSegment() {
 }
 void CtrRenderer::SwapBuffers() {
     if(!frameOpen || !sceneComplete) return;
+    // Flush external scene vertices before C2D_TargetClear submits their copy.
     FlushVertices();
     C3D_SetScissor(GPU_SCISSOR_DISABLE,0,0,0,0);
     C3D_FogGasMode(GPU_NO_FOG,GPU_PLAIN_DENSITY,false);
@@ -463,7 +472,10 @@ void CtrRenderer::SwapBuffers() {
     C2D_Prepare();NativeBlend();
     C2D_TargetClear(top,0xff000000);C2D_TargetClear(bottom,0xff000000);
     CtrPresentation::DrawBackground(top,bottom,gameplayLayout);
-    if(!gameplayLayout)CtrPresentation::DrawListBox(top);
+    if(!gameplayLayout) {
+        CtrReplayPanel::DrawBackground(top);
+        CtrPresentation::DrawListBox(top);
+    }
     if(gameplayLayout) {
         const float offset=CtrLayout::Offset(),scale=CtrLayout::Scale();
         CtrDecorations::DrawPortrait(top);
@@ -475,6 +487,7 @@ void CtrRenderer::SwapBuffers() {
         const u16 width=CtrMenuCanvas::FullWidth()?CtrMenuCanvas::Width:640;
         Tex3DS_SubTexture sub{width,480,0,480.0f/512,float(width)/1024,0};
         C2D_Image image{&scene,&sub};
+        // The menu target has premultiplied RGB. Apply its alpha once.
         C2D_Flush();NativeBlend(true);
         C2D_SceneBegin(top);C2D_DrawImageAt(image,CtrMenuCanvas::ScreenLeft(),0,0,nullptr,0.5f,0.5f);
         C2D_Flush();NativeBlend();
@@ -489,6 +502,7 @@ void CtrRenderer::SwapBuffers() {
         C2D_Flush();NativeBlend(true);menuLayer.Draw(bottom);C2D_Flush();NativeBlend();
         CtrPresentation::DrawMenu(bottom);
         CtrRecordsPanel::Draw(top,bottom);
+        CtrReplayPanel::Draw(top,bottom);
         CtrSelection::DrawTop(top);
         CtrPresentation::DrawContentFade(top,bottom);
         CtrHud::DrawMenuFps(top);
@@ -499,9 +513,8 @@ void CtrRenderer::SwapBuffers() {
     EndSegment();
     sceneComplete=false;
     if(gameplayLayout)CtrPresentation::ReleaseMenuAssets();
+    // Defer the GPU wait until the vertex arena is reused.
 }
-
-
 
 void CtrRenderer::BeginMenuLayer(bool clear) {
     if(!frameOpen)BeginFrame();
