@@ -78,6 +78,7 @@ See [Build from source](docs/build.md).
 
 - **ZUN / Team Shanghai Alice** — original game.
 - **[GensokyoClub/th06](https://github.com/GensokyoClub/th06)** — original reimplementation.
+- **[thprac](https://github.com/touhouworldcup/thprac)** — Custom Practice.
 - **ItsPoofy** — 3DS port.
 - **Emarrel** — EoSD Retexture Pack v0.3.
 - **[Touhou Patch Center](https://www.thpatch.net/wiki/Touhou_Patch_Center:Main_page)** — English translation.
